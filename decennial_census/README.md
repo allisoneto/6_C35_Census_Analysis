@@ -40,6 +40,7 @@ Produces two output versions:
 |---------|------|--------|
 | Merged data | `nhgis_timeseries_2010_bg.csv` | [NHGIS Data Finder](https://data2.nhgis.org/main) → Time Series Tables |
 | Native 1990 data | `nhgis_1990_block_groups.csv` | NHGIS Data Finder |
+| Native 2000/2010/2020 (same cols as 1990) | `nhgis_2000_block_groups.csv`, etc. | NHGIS Data Finder (optional; otherwise Census API) |
 | Native 1990/2000 boundaries | `tl_1990_25_bg.shp`, `tl_2000_25_bg.shp` | Census TIGER archive or NHGIS |
 
 Place files in `decennial_census/data/raw/` or `data/census/` as appropriate.

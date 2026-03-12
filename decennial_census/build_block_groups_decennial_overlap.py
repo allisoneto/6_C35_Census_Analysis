@@ -21,9 +21,10 @@ Requires:
     - 2010: data/census/tl_2010_25_bg.shp or decennial_census/data/raw/
     - 2020: data/census/tl_2024_25_bg.shp (shared with ACS)
     - 2000, 1990: decennial_census/data/raw/ (see download_decennial.py)
-  - NHGIS files for 1990 and merged (place in decennial_census/data/raw/):
-    - nhgis_1990_block_groups.csv
-    - nhgis_timeseries_2010_bg.csv
+  - NHGIS files (place in decennial_census/data/raw/):
+    - nhgis_1990_block_groups.csv (required for 1990)
+    - nhgis_{2000,2010,2020}_block_groups.csv (optional; same columns as 1990)
+    - nhgis_timeseries_2010_bg.csv (for merged version)
 
 Output:
   decennial_census/data/merged/block_groups_decennial_merged.geojson

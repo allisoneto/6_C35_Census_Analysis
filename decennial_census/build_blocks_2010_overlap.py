@@ -18,7 +18,7 @@ Requires:
   - config.yaml with census_api_key
   - data/mbta_communities/mbta_communities.geojson
   - data/mbta_stops_with_buffer/mbta_stops_with_buffer_collapsed.geojson
-  - 2010 Census blocks: data/census/tl_2010_25_tabblock10.shp
+  - 2010 Census blocks: data/census/tl_2010_25_tabblock10.shp or decennial_census/data/raw/
     (download from https://www2.census.gov/geo/tiger/TIGER2010/TABBLOCK/2010/)
 
 Output:

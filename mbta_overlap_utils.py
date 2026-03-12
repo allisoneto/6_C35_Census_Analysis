@@ -97,7 +97,6 @@ def clip_blocks_to_mbta(
     print(f"  Clipped to {len(clipped)} census blocks in MBTA Communities")
     return clipped
 
-
 def clip_block_groups_to_mbta(
     bg_path: Path,
     mbta_boundaries_path: Path,
@@ -108,7 +107,7 @@ def clip_block_groups_to_mbta(
     Parameters
     ----------
     bg_path : Path
-        Path to TIGER block group shapefile.
+        Path to TIGER block group shapefile (e.g. tl_2010_25_bg10.shp).
     mbta_boundaries_path : Path
         Path to MBTA communities GeoJSON.
 
@@ -127,6 +126,84 @@ def clip_block_groups_to_mbta(
     clipped = gpd.sjoin(bg, mbta[["geometry"]], how="inner", predicate="intersects")
     # Drop duplicate block groups (one BG can touch multiple towns at edges)
     clipped = clipped.drop(columns=[c for c in clipped.columns if c.startswith("index_")])
+
+    # Ensure GEOID exists. TIGER naming varies by vintage:
+    # 2010: GEOID10; 2000: BKGPIDFP00 or STATEFP00/COUNTYFP00/TRACTCE00/BLKGRPCE00; older: STATEFP/COUNTYFP/TRACTCE/BLKGRPCE
+    # Legacy 2000: BG_ID or STATE/COUNTY/TRACT/BLOCKGROUP (older Census 2000 TIGER format)
+    if "GEOID" not in clipped.columns:
+        if "GEOID10" in clipped.columns:
+            clipped = clipped.copy()
+            clipped["GEOID"] = clipped["GEOID10"].astype(str)
+        elif "BKGPIDFP00" in clipped.columns:
+            # Census 2000 TIGER: full block group identifier
+            clipped = clipped.copy()
+            clipped["GEOID"] = clipped["BKGPIDFP00"].astype(str)
+        elif "BG_ID" in clipped.columns:
+            # Legacy Census 2000 TIGER: BG_ID is the full block group GEOID (e.g. 250010101001)
+            clipped = clipped.copy()
+            clipped["GEOID"] = clipped["BG_ID"].astype(str)
+        elif all(c in clipped.columns for c in ["STATE", "COUNTY", "TRACT", "BLOCKGROUP"]):
+            # Legacy Census 2000 TIGER: component columns with older naming
+            clipped = clipped.copy()
+            clipped["GEOID"] = (
+                clipped["STATE"].astype(str).str.zfill(2)
+                + clipped["COUNTY"].astype(str).str.zfill(3)
+                + clipped["TRACT"].astype(str).str.zfill(6)
+                + clipped["BLOCKGROUP"].astype(str)
+            )
+        elif all(c in clipped.columns for c in ["STATEFP10", "COUNTYFP10", "TRACTCE10", "BLKGRPCE10"]):
+            clipped = clipped.copy()
+            clipped["GEOID"] = (
+                clipped["STATEFP10"].astype(str).str.zfill(2)
+                + clipped["COUNTYFP10"].astype(str).str.zfill(3)
+                + clipped["TRACTCE10"].astype(str).str.zfill(6)
+                + clipped["BLKGRPCE10"].astype(str)
+            )
+        elif all(c in clipped.columns for c in ["STATEFP00", "COUNTYFP00", "TRACTCE00", "BLKGRPCE00"]):
+            # Census 2000 TIGER: component columns
+            clipped = clipped.copy()
+            clipped["GEOID"] = (
+                clipped["STATEFP00"].astype(str).str.zfill(2)
+                + clipped["COUNTYFP00"].astype(str).str.zfill(3)
+                + clipped["TRACTCE00"].astype(str).str.zfill(6)
+                + clipped["BLKGRPCE00"].astype(str)
+            )
+        elif all(c in clipped.columns for c in ["STATEFP", "COUNTYFP", "TRACTCE", "BLKGRPCE"]):
+            clipped = clipped.copy()
+            clipped["GEOID"] = (
+                clipped["STATEFP"].astype(str).str.zfill(2)
+                + clipped["COUNTYFP"].astype(str).str.zfill(3)
+                + clipped["TRACTCE"].astype(str).str.zfill(6)
+                + clipped["BLKGRPCE"].astype(str)
+            )
+        elif all(c in clipped.columns for c in ["CNTY", "TRACTBNA", "BLCKGR"]):
+            # 1990 Census / NHGIS block group format (CNTY, TRACTBNA, BLCKGR).
+            # State FIPS inferred from path (e.g. tl_1990_25_bg.shp -> 25).
+            match = re.search(r"_(\d{2})_bg", str(bg_path))
+            if not match:
+                raise ValueError(
+                    f"Cannot infer state FIPS from path for 1990 format (CNTY/TRACTBNA/BLCKGR). "
+                    f"Path should match pattern *_XX_bg* (e.g. tl_1990_25_bg.shp). Path: {bg_path}"
+                )
+            state_fips = match.group(1)
+            clipped = clipped.copy()
+            # Drop rows with missing components before constructing GEOID
+            clipped = clipped.dropna(subset=["CNTY", "TRACTBNA", "BLCKGR"])
+            clipped["GEOID"] = (
+                state_fips
+                + clipped["CNTY"].astype(str).str.zfill(3)
+                + clipped["TRACTBNA"].astype(str).str.replace(r"\.0$", "", regex=True).str.zfill(6)
+                + clipped["BLCKGR"].astype(str).str.replace(r"\.0$", "", regex=True)
+            )
+        else:
+            raise ValueError(
+                "Block group shapefile must have GEOID, GEOID10, BKGPIDFP00, BG_ID, or component columns "
+                "(STATEFP10/COUNTYFP10/TRACTCE10/BLKGRPCE10, STATEFP00/COUNTYFP00/TRACTCE00/BLKGRPCE00, "
+                "STATEFP/COUNTYFP/TRACTCE/BLKGRPCE, STATE/COUNTY/TRACT/BLOCKGROUP, or CNTY/TRACTBNA/BLCKGR "
+                "with path *_XX_bg* for state). "
+                f"Found columns: {list(clipped.columns)}"
+            )
+
     clipped = clipped.drop_duplicates(subset=["GEOID"])
     print(f"  Clipped to {len(clipped)} block groups in MBTA Communities")
     return clipped

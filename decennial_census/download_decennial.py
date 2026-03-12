@@ -1,11 +1,14 @@
 """
 Download decennial census data for block groups in Massachusetts.
 
-Uses Census API for 2000, 2010, 2020. For 1990, loads from NHGIS files
-placed in data/raw/ (NHGIS has no Census API; use Data Finder at
-https://data2.nhgis.org/main to create extract, then place CSV in
-decennial_census/data/raw/nhgis_1990_block_groups.csv).
+Data sources (checked in order):
+  - NHGIS: If nhgis_{year}_block_groups.csv exists in data/raw/, use it.
+    Use for 1990 (no Census API) and optionally 2000/2010/2020 to get
+    the same columns as 1990 (income, housing values, etc.).
+  - Census API: Fallback for 2000/2010/2020 when no NHGIS file exists.
+    Limited to SF1/PL vars: population, housing, race/ethnicity only.
 
+Create NHGIS extracts at https://data2.nhgis.org/main (free registration).
 Variable codes differ by year; see decennial_variable_mapping.csv.
 """
 
@@ -198,6 +201,43 @@ def download_census_api(
     return combined
 
 
+def _load_nhgis_csv(raw_dir: Path, year: int) -> pd.DataFrame:
+    """
+    Load block group data from NHGIS CSV for a given year.
+
+    Checks for nhgis_{year}_block_groups.csv or nhgis_{year}_bg.csv.
+    Use NHGIS Data Finder (https://data2.nhgis.org/main) to create extracts
+    with the same variables as your 1990 extract for column consistency.
+
+    Parameters
+    ----------
+    raw_dir : Path
+        Path to data/raw directory.
+    year : int
+        Census year (1990, 2000, 2010, or 2020).
+
+    Returns
+    -------
+    pd.DataFrame
+        Block group data with GISJOIN or GEOID and variables.
+    """
+    paths = [
+        raw_dir / f"nhgis_{year}_block_groups.csv",
+        raw_dir / f"nhgis_{year}_bg.csv",
+    ]
+    for p in paths:
+        if p.exists():
+            df = pd.read_csv(p)
+            # NHGIS uses GISJOIN; convert to 12-digit GEOID if needed
+            if "GISJOIN" in df.columns and "GEOID" not in df.columns:
+                df["GEOID"] = df["GISJOIN"].apply(
+                    lambda x: str(x)[1:13] if pd.notna(x) and len(str(x)) >= 13 else ""
+                )
+            return df
+
+    return pd.DataFrame()
+
+
 def load_nhgis_1990(raw_dir: Path) -> pd.DataFrame:
     """
     Load 1990 block group data from NHGIS CSV.
@@ -206,7 +246,7 @@ def load_nhgis_1990(raw_dir: Path) -> pd.DataFrame:
     Create via NHGIS Data Finder (https://data2.nhgis.org/main):
     - Geographic level: Block Group
     - State: Massachusetts
-    - Tables: 1990 SF1 population and housing
+    - Tables: 1990 SF1 population and housing (add SF3 for income, housing values)
 
     Parameters
     ----------
@@ -218,31 +258,7 @@ def load_nhgis_1990(raw_dir: Path) -> pd.DataFrame:
     pd.DataFrame
         Block group data with GISJOIN or GEOID and variables.
     """
-    paths = [
-        raw_dir / "nhgis_1990_block_groups.csv",
-        raw_dir / "nhgis_1990_bg.csv",
-    ]
-    for p in paths:
-        if p.exists():
-            df = pd.read_csv(p)
-            # NHGIS uses GISJOIN; convert to 12-digit GEOID if needed
-            if "GISJOIN" in df.columns and "GEOID" not in df.columns:
-                # GISJOIN format: G25XXXYYYTTTTTB (state, county, tract, bg)
-                def gisjoin_to_geoid(g):
-                    if pd.isna(g) or not isinstance(g, str):
-                        return ""
-                    # G250030017001001 -> 250030017001001 (strip G, ensure 12 digits)
-                    s = g.replace("G", "").replace("0", "0")  # no-op
-                    # Format: 2 state, 3 county, 6 tract, 1 bg
-                    if len(g) >= 13:
-                        return g[1:13]  # Remove leading G
-                    return ""
-                df["GEOID"] = df["GISJOIN"].apply(
-                    lambda x: str(x)[1:13] if pd.notna(x) and len(str(x)) >= 13 else ""
-                )
-            return df
-
-    return pd.DataFrame()
+    return _load_nhgis_csv(raw_dir, 1990)
 
 
 def load_nhgis_time_series(raw_dir: Path) -> pd.DataFrame:
@@ -306,27 +322,26 @@ def download_all(
 
     results = {}
     for year in years:
-        if year == 1990:
+        # NHGIS: 1990 has no Census API; 2000/2010/2020 can use NHGIS for same columns as 1990
+        df = _load_nhgis_csv(raw_dir, year)
+        if not df.empty:
+            print(f"  Loading {year} from NHGIS file...")
+            if geoids_filter:
+                geoids_str = [str(g) for g in geoids_filter]
+                if "GEOID" in df.columns:
+                    df = df[df["GEOID"].isin(geoids_str)]
+            results[year] = df
+            print(f"    {len(df)} block groups, {len(df.columns) - 1} vars")
+        elif year == 1990:
             print("  Loading 1990 from NHGIS file...")
-            df = load_nhgis_1990(raw_dir)
-            if df.empty:
-                print("    No nhgis_1990_block_groups.csv found; place NHGIS extract in data/raw/")
-            else:
-                if geoids_filter:
-                    geoids_str = [str(g) for g in geoids_filter]
-                    if "GEOID" in df.columns:
-                        df = df[df["GEOID"].isin(geoids_str)]
-                    elif "GISJOIN" in df.columns:
-                        # Filter by GISJOIN prefix match if GEOID not available
-                        pass  # Keep all for now
-                results[1990] = df
-                print(f"    {len(df)} block groups")
+            print("    No nhgis_1990_block_groups.csv found; place NHGIS extract in data/raw/")
         else:
-            print(f"  Downloading {year} from Census API...")
+            # Fall back to Census API (limited vars: pop, housing, race/ethnicity only)
+            print(f"  Downloading {year} from Census API (limited vars)...")
             df = download_census_api(year, api_key, geoids_filter)
             if not df.empty:
                 results[year] = df
-                print(f"    {len(df)} block groups, {len(df.columns)-1} vars")
+                print(f"    {len(df)} block groups, {len(df.columns) - 1} vars")
             else:
                 print(f"    No data for {year}")
 

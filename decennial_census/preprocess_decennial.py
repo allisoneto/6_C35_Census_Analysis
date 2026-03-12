@@ -145,6 +145,48 @@ def preprocess_native(
     return result
 
 
+def _reshape_nhgis_wide_to_long(wide_df: pd.DataFrame) -> pd.DataFrame:
+    """
+    Reshape NHGIS time series from wide format to long format.
+
+    NHGIS time series has one row per block group with columns like CL8AA1990,
+    CL8AA2000, CL8AA2010, CL8AA2020. This converts to one row per (GEOID, year)
+    with variable columns for that year (excluding L/U confidence bound columns).
+
+    Parameters
+    ----------
+    wide_df : pd.DataFrame
+        NHGIS data in wide format (one row per block group).
+
+    Returns
+    -------
+    pd.DataFrame
+        Long-format data with GEOID, year, and census variables.
+    """
+    id_cols = [
+        c for c in wide_df.columns
+        if c in ("GEOID", "GISJOIN", "STATE", "STATEA", "COUNTY", "COUNTYA", "TRACTA", "BLCK_GRPA", "GEOGYEAR")
+        or c in ("YEAR", "DATAYEAR", "year", "Year")
+    ]
+    data_cols = [c for c in wide_df.columns if c not in id_cols]
+
+    years = [1990, 2000, 2010, 2020]
+    long_rows = []
+
+    for _, row in wide_df.iterrows():
+        geoid = row["GEOID"]
+        for year in years:
+            year_data = {"GEOID": geoid, "year": year}
+            for col in data_cols:
+                # Match columns ending with YYYY (value columns, not L/U bounds)
+                if col.endswith(str(year)) and not col.endswith(str(year) + "L") and not col.endswith(str(year) + "U"):
+                    base_name = col[: -len(str(year))]
+                    year_data[base_name] = row[col]
+            long_rows.append(year_data)
+
+    return pd.DataFrame(long_rows)
+
+
 def preprocess_for_merged(
     nhgis_timeseries: pd.DataFrame,
     mapping_path: Path,
@@ -153,13 +195,14 @@ def preprocess_for_merged(
     """
     Preprocess NHGIS time series data for merged (2010-basis) output.
 
-    NHGIS time series already uses 2010 geography. Ensure GEOID and
-    variable names are consistent.
+    NHGIS time series is in wide format (one row per block group, columns like
+    CL8AA1990, CL8AA2000). This reshapes to long format (one row per GEOID+year)
+    and ensures GEOID matches TIGER block group format.
 
     Parameters
     ----------
     nhgis_timeseries : pd.DataFrame
-        NHGIS geographically standardized time series.
+        NHGIS geographically standardized time series (wide format).
     mapping_path : Path
         Path to decennial_variable_mapping.csv.
     geoids_filter : list[str], optional
@@ -168,32 +211,35 @@ def preprocess_for_merged(
     Returns
     -------
     pd.DataFrame
-        Long-format DataFrame with year, GEOID, canonical variables.
+        Long-format DataFrame with year, GEOID, and census variables.
     """
     if nhgis_timeseries is None or nhgis_timeseries.empty:
         return pd.DataFrame()
 
     df = nhgis_timeseries.copy()
 
-    # NHGIS may use GISJOIN or GEOID; standardize
-    if "GISJOIN" in df.columns and "GEOID" not in df.columns:
+    # Build 12-digit GEOID from components (more reliable than parsing GISJOIN)
+    if all(c in df.columns for c in ["STATEA", "COUNTYA", "TRACTA", "BLCK_GRPA"]):
+        bg = df["BLCK_GRPA"].astype(str).str.replace(r"\D", "", regex=True)
+        bg = bg.where(bg.str.len() > 0, "0").str[-1]
+        df["GEOID"] = (
+            df["STATEA"].astype(str).str.zfill(2)
+            + df["COUNTYA"].astype(str).str.zfill(3)
+            + df["TRACTA"].astype(str).str.zfill(6)
+            + bg
+        )
+    elif "GISJOIN" in df.columns and "GEOID" not in df.columns:
         df["GEOID"] = df["GISJOIN"].apply(
             lambda x: str(x)[1:13] if pd.notna(x) and len(str(x)) >= 13 else ""
         )
     if "GEOID" in df.columns:
         df["GEOID"] = ensure_geoid_12digit(df["GEOID"])
 
-    # NHGIS time series has YEAR or DATAYEAR column
-    year_col = None
-    for c in ["YEAR", "DATAYEAR", "year", "Year"]:
-        if c in df.columns:
-            year_col = c
-            break
-    if year_col and year_col != "year":
-        df["year"] = df[year_col].astype(int)
-
     if geoids_filter:
         geoids_str = [str(g).zfill(12) if len(str(g)) < 12 else str(g) for g in geoids_filter]
         df = df[df["GEOID"].isin(geoids_str)]
+
+    # Reshape from wide (one row per block group) to long (one row per GEOID+year)
+    df = _reshape_nhgis_wide_to_long(df)
 
     return df
