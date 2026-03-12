@@ -9,39 +9,33 @@ Similar to parse_json_entries.py: handles format changes across ACS vintages.
   same variable has the same name across years—enabling direct year-over-year
   comparison without a mapping table.
 - Outputs long-format table with year column for time-series analysis.
+- Variable values are passed through unchanged; only column selection may change.
 
 Usage:
-  python preprocess_acs.py
+  python -m acs.preprocess_acs
 
 Input:
-  data/census/acs_raw/ (or ACS data from build_block_groups_acs_overlap)
+  acs/data/raw/ (or ACS data from build_block_groups_acs_overlap)
 Output:
-  data/census/acs_normalized/acs_block_groups_mbta_long.csv
+  acs/data/normalized/acs_block_groups_mbta_long.csv
 """
 
 from pathlib import Path
 
 import pandas as pd
 
-PROJECT_ROOT = Path(__file__).resolve().parent
-DATA_DIR = PROJECT_ROOT / "data"
-ACS_RAW_DIR = DATA_DIR / "census" / "acs_raw"
-ACS_NORMALIZED_DIR = DATA_DIR / "census" / "acs_normalized"
+# Paths: ACS data lives in acs/data/
+ACS_ROOT = Path(__file__).resolve().parent
+PROJECT_ROOT = ACS_ROOT.parent
+ACS_RAW_DIR = ACS_ROOT / "data" / "raw"
+ACS_NORMALIZED_DIR = ACS_ROOT / "data" / "normalized"
 
 
 def normalize_acs_columns(df: pd.DataFrame) -> pd.DataFrame:
     """
     Normalize ACS columns: drop character (A) vars when numeric exists.
 
-    Parameters
-    ----------
-    df : pd.DataFrame
-        Raw ACS DataFrame with variable columns.
-
-    Returns
-    -------
-    pd.DataFrame
-        DataFrame with normalized columns.
+    Does not modify variable values; only removes redundant character columns.
     """
     cols = list(df.columns)
     to_drop = []
@@ -60,17 +54,7 @@ def preprocess_acs_by_year(
     """
     Combine ACS data across years into long format.
 
-    Parameters
-    ----------
-    acs_by_year : dict[int, pd.DataFrame]
-        Year -> raw ACS DataFrame.
-    geoids : list[str], optional
-        Block group GEOIDs to keep.
-
-    Returns
-    -------
-    pd.DataFrame
-        Long-format table: GEOID, year, and ACS variables.
+    Variable values are passed through unchanged.
     """
     all_dfs = []
     for year, df in sorted(acs_by_year.items()):
@@ -80,7 +64,6 @@ def preprocess_acs_by_year(
         df["year"] = year
         if geoids:
             df = df[df["GEOID"].isin(geoids)]
-        # Keep geography columns (state, county, tract, block group, GEO_ID) for analysis
         df = normalize_acs_columns(df)
         all_dfs.append(df)
 
@@ -95,11 +78,9 @@ def preprocess_acs_by_year(
 def main() -> None:
     """Run preprocessing on ACS raw files in acs_raw/ if present."""
     ACS_NORMALIZED_DIR.mkdir(parents=True, exist_ok=True)
-    # This module is typically called from build_block_groups_acs_overlap
-    # Standalone: load from acs_raw/ if saved
     raw_files = list(ACS_RAW_DIR.glob("acs_*.csv")) if ACS_RAW_DIR.exists() else []
     if not raw_files:
-        print("No raw ACS files in acs_raw/; run build_block_groups_acs_overlap with API key.")
+        print("No raw ACS files in acs/data/raw/; run python -m acs.build_block_groups_acs_overlap with API key.")
         return
 
     acs_by_year = {}
