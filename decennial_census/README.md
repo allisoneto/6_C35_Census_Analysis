@@ -51,14 +51,14 @@ Place files in `decennial_census/data/raw/` or `data/census/` as appropriate.
 
 ## Run
 
-**Block groups (merged + native):**
+**Block groups (merged + native) — ~3,500–7,000 units:**
 ```bash
 python -m decennial_census.build_block_groups_decennial_overlap
 ```
 
-**2010 Census blocks (separate pipeline):**
+**2010 Census blocks (separate pipeline) — ~93,000 units. Use only if you need block-level detail.**
 
-Uses 2010 block geography; decennial data at block level. Requires block shapefile:
+Uses 2010 block geography; decennial data at block level. Requires block shapefile (NOT block groups):
 
 - Download: https://www2.census.gov/geo/tiger/TIGER2010/TABBLOCK/2010/tl_2010_25_tabblock10.zip
 - Extract to `data/census/` or `decennial_census/data/raw/`

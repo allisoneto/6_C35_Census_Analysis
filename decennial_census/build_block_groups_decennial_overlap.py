@@ -75,6 +75,7 @@ BG_PATHS = {
     1990: [
         DECENNIAL_ROOT / "data" / "raw" / "tl_1990_25_bg.shp",
         DECENNIAL_ROOT / "data" / "raw" / "nhgis_1990_bg.shp",
+        DATA_DIR / "census" / "tl_1990_25_bg.shp",
     ],
     2000: [
         DATA_DIR / "census" / "tl_2000_25_bg.shp",
@@ -198,19 +199,12 @@ def main() -> None:
     # -------------------------------------------------------------------------
     print("\n--- Native version (per-year geometry) ---")
 
-    # Download Census API data (2000, 2010, 2020)
+    # Download Census API (2000, 2010, 2020) and load 1990 from NHGIS (no Census API for 1990)
     data_by_year = download_all(
-        years=[2000, 2010, 2020],
+        years=[1990, 2000, 2010, 2020],
         api_key=api_key,
         raw_dir=RAW_DIR,
     )
-
-    # Load 1990 from NHGIS file
-    if RAW_DIR.joinpath("nhgis_1990_block_groups.csv").exists():
-        from decennial_census.download_decennial import load_nhgis_1990
-        df_1990 = load_nhgis_1990(RAW_DIR)
-        if not df_1990.empty:
-            data_by_year[1990] = df_1990
 
     # Get MBTA geoids from 2020 boundaries (most current)
     bg_2020_path = _resolve_bg_path(2020)
