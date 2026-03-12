@@ -128,10 +128,14 @@ def clip_block_groups_to_mbta(
     clipped = clipped.drop(columns=[c for c in clipped.columns if c.startswith("index_")])
 
     # Ensure GEOID exists. TIGER naming varies by vintage:
-    # 2010: GEOID10; 2000: BKGPIDFP00 or STATEFP00/COUNTYFP00/TRACTCE00/BLKGRPCE00; older: STATEFP/COUNTYFP/TRACTCE/BLKGRPCE
+    # 2020: GEOID20; 2010: GEOID10; 2000: BKGPIDFP00 or STATEFP00/COUNTYFP00/TRACTCE00/BLKGRPCE00; older: STATEFP/COUNTYFP/TRACTCE/BLKGRPCE
     # Legacy 2000: BG_ID or STATE/COUNTY/TRACT/BLOCKGROUP (older Census 2000 TIGER format)
     if "GEOID" not in clipped.columns:
-        if "GEOID10" in clipped.columns:
+        if "GEOID20" in clipped.columns:
+            # Census 2020 TIGER: full block group identifier
+            clipped = clipped.copy()
+            clipped["GEOID"] = clipped["GEOID20"].astype(str)
+        elif "GEOID10" in clipped.columns:
             clipped = clipped.copy()
             clipped["GEOID"] = clipped["GEOID10"].astype(str)
         elif "BKGPIDFP00" in clipped.columns:
@@ -197,7 +201,7 @@ def clip_block_groups_to_mbta(
             )
         else:
             raise ValueError(
-                "Block group shapefile must have GEOID, GEOID10, BKGPIDFP00, BG_ID, or component columns "
+                "Block group shapefile must have GEOID, GEOID20, GEOID10, BKGPIDFP00, BG_ID, or component columns "
                 "(STATEFP10/COUNTYFP10/TRACTCE10/BLKGRPCE10, STATEFP00/COUNTYFP00/TRACTCE00/BLKGRPCE00, "
                 "STATEFP/COUNTYFP/TRACTCE/BLKGRPCE, STATE/COUNTY/TRACT/BLOCKGROUP, or CNTY/TRACTBNA/BLCKGR "
                 "with path *_XX_bg* for state). "

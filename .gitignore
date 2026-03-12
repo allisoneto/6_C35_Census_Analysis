@@ -3,3 +3,5 @@ data_a2
 config.yaml
 __pycache__
 .venv
+output
+output_old

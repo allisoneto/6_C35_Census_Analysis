@@ -1,9 +1,6 @@
 # Decennial Census Block Group MBTA Overlap
 
-Produces two output versions:
-
-1. **Merged** (2010 geography): Block groups standardized to 2010 boundaries with 1990-2020 data from NHGIS time series. For consistent change-over-time analysis.
-2. **Native** (per-year geometry): Block groups with year-specific boundaries. For hole-free single-year visualization.
+Produces **merged** output only: 2010 block group geography with 1990-2020 data from NHGIS time series. For consistent change-over-time analysis.
 
 ## Required Data
 
@@ -11,9 +8,8 @@ Produces two output versions:
 
 - `data/mbta_communities/mbta_communities.geojson`
 - `data/mbta_stops_with_buffer/mbta_stops_with_buffer_collapsed.geojson`
-- `data/census/tl_2024_25_bg.shp` (2020 block groups; used for native 2020)
 
-### 2010 Block Group Shapefile (for merged + native 2010)
+### 2010 Block Group Shapefile
 
 **Option A – Census Bureau web tool**
 
@@ -34,16 +30,13 @@ Produces two output versions:
 - MassGIS 2010 Census block groups: https://www.mass.gov/info-details/massgis-data-2010-us-census  
 - Use the CENSUS2010BLOCKGROUPS_POLY layer; export to shapefile if needed.
 
-### Other decennial data
+### NHGIS time series
 
 | Purpose | File | Source |
 |---------|------|--------|
 | Merged data | `nhgis_timeseries_2010_bg.csv` | [NHGIS Data Finder](https://data2.nhgis.org/main) → Time Series Tables |
-| Native 1990 data | `nhgis_1990_block_groups.csv` | NHGIS Data Finder |
-| Native 2000/2010/2020 (same cols as 1990) | `nhgis_2000_block_groups.csv`, etc. | NHGIS Data Finder (optional; otherwise Census API) |
-| Native 1990/2000 boundaries | `tl_1990_25_bg.shp`, `tl_2000_25_bg.shp` | Census TIGER archive or NHGIS |
 
-Place files in `decennial_census/data/raw/` or `data/census/` as appropriate.
+Place in `decennial_census/data/raw/`.
 
 ## Configuration
 
@@ -52,7 +45,7 @@ Place files in `decennial_census/data/raw/` or `data/census/` as appropriate.
 
 ## Run
 
-**Block groups (merged + native) — ~3,500–7,000 units:**
+**Block groups (merged) — ~3,500–7,000 units:**
 ```bash
 python -m decennial_census.build_block_groups_decennial_overlap
 ```

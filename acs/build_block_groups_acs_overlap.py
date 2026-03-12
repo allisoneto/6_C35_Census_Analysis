@@ -1,8 +1,12 @@
 """
 Build block groups with ACS data and MBTA stop buffer overlap counts.
 
+Uses 2010 census block group geography (boundaries). ACS 2013-2021 uses 2010 geography;
+ACS 2022+ uses 2020 geography. For 2022-2024, only GEOIDs unchanged between 2010 and
+2020 will have data; others will have NaN for those years.
+
 Pipeline:
-  1. Clip block groups to MBTA Communities
+  1. Clip 2010 block groups to MBTA Communities
   2. Flatten stop buffers (explode routes array)
   3. Spatial join: block group centroids within buffers
   4. Download ACS Data Profile (DP02-DP05) via Census API
@@ -16,13 +20,19 @@ Requires:
   - config.yaml with census_api_key (or skip ACS with empty key)
   - data/mbta_communities_list.csv (with massgis_match)
   - data/mbta_communities/mbta_communities.geojson
-  - data/census/tl_2024_25_bg.shp
+  - data/census/tl_2010_25_bg.shp or tl_2010_25_bg10.shp (2010 block groups)
+  - data/census/tl_2020_25_bg.shp (optional, for 2020 geography alternative product)
   - data/mbta_stops_with_buffer/mbta_stops_with_buffer_collapsed.geojson
 
 Output:
   acs/data/output/block_groups_acs_overlap.geojson
   acs/data/output/block_groups_acs_overlap.csv
   acs/data/output/block_groups_acs_overlap_long.csv (all years)
+
+  acs/data/output/block_groups_acs_overlap_2020.geojson (alternative: 2020 geography)
+  acs/data/output/block_groups_acs_overlap_2020.csv
+  acs/data/output/block_groups_acs_overlap_long_2020.csv
+  Pre-2020 years will have NaN for 2020 GEOIDs (Census API uses 2010 geography before 2022).
 
 Data integrity: Census API values are passed through unchanged. GEOID is derived
 from API geography columns (state, county, tract, block group) for consistent joins.
@@ -36,6 +46,12 @@ from urllib.error import HTTPError, URLError
 
 import geopandas as gpd
 import pandas as pd
+
+import sys
+from pathlib import Path
+
+# Add parent directory to sys.path to allow imports from parent folder
+sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
 from mbta_overlap_utils import (
     clip_block_groups_to_mbta,
@@ -54,7 +70,20 @@ CONFIG_PATHS = [PROJECT_ROOT / "config.yaml", ACS_ROOT / "config.yaml"]
 DATA_DIR = PROJECT_ROOT / "data"
 MBTA_LIST_PATH = DATA_DIR / "mbta_communities_list.csv"
 MBTA_BOUNDARIES_PATH = DATA_DIR / "mbta_communities" / "mbta_communities.geojson"
-BLOCK_GROUPS_PATH = DATA_DIR / "census" / "tl_2024_25_bg.shp"
+# 2010 census block groups (check multiple locations; tl_2010_25_bg10.shp is Census TIGER naming)
+BG_2010_PATHS = [
+    DATA_DIR / "census" / "tl_2010_25_bg.shp",
+    DATA_DIR / "census" / "tl_2010_25_bg10.shp",
+    ACS_ROOT / "data" / "raw" / "tl_2010_25_bg.shp",
+    ACS_ROOT / "data" / "raw" / "tl_2010_25_bg10.shp",
+]
+# 2020 census block groups (for alternative product; ACS 2022+ uses 2020 geography)
+BG_2020_PATHS = [
+    DATA_DIR / "census" / "tl_2020_25_bg.shp",
+    ACS_ROOT / "data" / "raw" / "tl_2020_25_bg.shp",
+    DATA_DIR / "census" / "tl_2024_25_bg.shp",
+    ACS_ROOT / "data" / "raw" / "tl_2024_25_bg.shp",
+]
 BUFFER_PATH = DATA_DIR / "mbta_stops_with_buffer" / "mbta_stops_with_buffer_collapsed.geojson"
 
 # ACS-specific data (inside acs/)
@@ -63,13 +92,31 @@ OUTPUT_DIR = ACS_DATA_DIR / "output"
 ACS_RAW_DIR = ACS_DATA_DIR / "raw"
 ACS_NORMALIZED_DIR = ACS_DATA_DIR / "normalized"
 
-# ACS 5-year block group data: only available from 2013 onward (Census API limitation)
+# ACS 5-year block group data: only available from 2013 onward (Census API limitation).
+# 2013-2021 use 2010 geography; 2022+ use 2020 geography. When using 2010 boundaries,
+# 2022-2024 data joins only for GEOIDs unchanged between 2010 and 2020; others get NaN.
 ACS_YEARS = list(range(2013, 2025))  # 2013-2024
 DP_TABLES = ["DP02", "DP03", "DP04", "DP05"]
 STATE_FIPS = "25"  # Massachusetts
 
 # Census API base URL
 CENSUS_API_BASE = "https://api.census.gov/data"
+
+
+def _resolve_bg_2010_path() -> Path | None:
+    """Return first existing 2010 block group shapefile path."""
+    for p in BG_2010_PATHS:
+        if p.exists():
+            return p
+    return None
+
+
+def _resolve_bg_2020_path() -> Path | None:
+    """Return first existing 2020 block group shapefile path."""
+    for p in BG_2020_PATHS:
+        if p.exists():
+            return p
+    return None
 
 
 def load_config() -> dict:
@@ -142,8 +189,19 @@ def _build_geoid_from_row(row_values: list, headers: list) -> str:
         elif h_lower == "county":
             county = val.zfill(3) if val else ""
         elif h_lower == "tract":
-            # API may return "6171.01" or "13300"; TIGER needs 6-digit "617101" or "013300"
-            tract = re.sub(r"\D", "", val)[:6].zfill(6) if val else ""
+            # API may return "6171.01", "6171.1", or "13300"; TIGER needs 6-digit
+            # e.g. 6171.01->617101, 6171.1->617110, 13300->013300
+            if val:
+                if "." in val:
+                    parts = val.split(".", 1)
+                    whole = re.sub(r"\D", "", parts[0])
+                    frac = re.sub(r"\D", "", parts[1]) if len(parts) > 1 else ""
+                    frac = frac.ljust(2, "0")[:2]  # right-pad: "1"->"10", "01"->"01"
+                    tract = (whole + frac)[:6].zfill(6)
+                else:
+                    tract = re.sub(r"\D", "", val)[:6].zfill(6)
+            else:
+                tract = ""
         elif "block" in h_lower and "group" in h_lower:
             # Block group 0-9; API may return "1" or "01"
             bg = str(int(float(val))) if val and val != "" else ""
@@ -290,8 +348,14 @@ def main() -> None:
         print("Warning: no ACS years >= 2013 (block groups unsupported before 2013); skipping ACS.", flush=True)
 
     mbta_geojson = data_dir / "mbta_communities" / "mbta_communities.geojson"
-    bg_path = data_dir / "census" / "tl_2024_25_bg.shp"
+    bg_path = _resolve_bg_2010_path()
     buffer_path = data_dir / "mbta_stops_with_buffer" / "mbta_stops_with_buffer_collapsed.geojson"
+
+    if not bg_path:
+        print("Error: 2010 block group shapefile not found.")
+        print("  Place tl_2010_25_bg.shp or tl_2010_25_bg10.shp in data/census/ or acs/data/raw/")
+        print("  Download: https://www2.census.gov/geo/tiger/TIGER2010/BG/2010/tl_2010_25_bg10.zip")
+        return
 
     output_dir.mkdir(parents=True, exist_ok=True)
     ACS_RAW_DIR.mkdir(parents=True, exist_ok=True)
@@ -343,6 +407,49 @@ def main() -> None:
     print(f"  {output_dir / 'block_groups_acs_overlap.csv'}")
     if not acs_long.empty:
         print(f"  {output_dir / 'block_groups_acs_overlap_long.csv'} (all years)")
+
+    # Alternative product: 2020 block group geography (new GEOIDs; pre-2020 years will have NaN)
+    bg_2020_path = _resolve_bg_2020_path()
+    if bg_2020_path:
+        print("\n--- Alternative product (2020 geography) ---", flush=True)
+        block_groups_2020 = clip_block_groups_to_mbta(bg_2020_path, mbta_geojson)
+        geoids_2020 = block_groups_2020["GEOID"].tolist()
+        overlap_df_2020 = compute_overlap_counts(block_groups_2020, buffers_gdf)
+
+        acs_by_year_2020 = {}
+        if api_key:
+            acs_by_year_2020 = download_acs_for_block_groups(geoids_2020, acs_years, api_key)
+
+        acs_long_2020 = pd.DataFrame()
+        if acs_by_year_2020:
+            acs_long_2020 = preprocess_acs(acs_by_year_2020, geoids_2020)
+            acs_long_2020.to_csv(output_dir / "block_groups_acs_overlap_long_2020.csv", index=False)
+            print(f"Saved {output_dir / 'block_groups_acs_overlap_long_2020.csv'}")
+
+        latest_year_2020 = max(acs_by_year_2020.keys()) if acs_by_year_2020 else None
+        if latest_year_2020 is not None and latest_year_2020 in acs_by_year_2020:
+            acs_latest_2020 = acs_by_year_2020[latest_year_2020].copy()
+            acs_latest_2020 = acs_latest_2020.drop(columns=["year"], errors="ignore")
+            acs_latest_2020["GEOID"] = acs_latest_2020["GEOID"].astype(str)
+            merged_2020 = block_groups_2020.merge(overlap_df_2020, on="GEOID", how="left")
+            merged_2020 = merged_2020.merge(acs_latest_2020, on="GEOID", how="left")
+        else:
+            merged_2020 = block_groups_2020.merge(overlap_df_2020, on="GEOID", how="left")
+
+        merged_2020 = merged_2020.to_crs(epsg=4326)
+        merged_2020.to_file(output_dir / "block_groups_acs_overlap_2020.geojson", driver="GeoJSON")
+        merged_csv_2020 = merged_2020.drop(columns=["geometry"], errors="ignore")
+        merged_csv_2020.to_csv(output_dir / "block_groups_acs_overlap_2020.csv", index=False)
+
+        print(f"  {output_dir / 'block_groups_acs_overlap_2020.geojson'} ({len(merged_2020)} features)")
+        print(f"  {output_dir / 'block_groups_acs_overlap_2020.csv'}")
+        if not acs_long_2020.empty:
+            print(f"  {output_dir / 'block_groups_acs_overlap_long_2020.csv'} (all years; pre-2020 NaN for new GEOIDs)")
+    else:
+        print(
+            "\nSkipping 2020 geography product: tl_2020_25_bg.shp not found. "
+            "Place in data/census/ or acs/data/raw/ to generate block_groups_acs_overlap_2020.*"
+        )
 
 
 if __name__ == "__main__":

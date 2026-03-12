@@ -1,36 +1,28 @@
 """
 Build block groups with decennial census data and MBTA stop buffer overlap counts.
 
-Pipeline:
-  1. Clip block groups to MBTA Communities (per year for native; 2010 for merged)
+Pipeline (merged only):
+  1. Clip 2010 block groups to MBTA Communities
   2. Flatten stop buffers, compute overlap counts
-  3. Download decennial data: Census API (2000, 2010, 2020) + NHGIS (1990)
+  3. Load NHGIS time series (1990-2020 standardized to 2010 geography)
   4. Preprocess (variable alignment, GEOID normalization)
-  5. Output two versions:
-     - Merged: 2010 geography, NHGIS time series (1990-2020)
-     - Native: per-year geometry and data
+  5. Output merged GeoJSON and long-format CSV
 
 Usage:
   python -m decennial_census.build_block_groups_decennial_overlap
 
 Requires:
-  - config.yaml or project config.yaml with census_api_key
   - data/mbta_communities/mbta_communities.geojson
   - data/mbta_stops_with_buffer/mbta_stops_with_buffer_collapsed.geojson
-  - Block group boundaries:
-    - 2010: data/census/tl_2010_25_bg.shp or decennial_census/data/raw/
-    - 2020: data/census/tl_2024_25_bg.shp (shared with ACS)
-    - 2000, 1990: decennial_census/data/raw/ (see download_decennial.py)
+  - Block group boundaries (2010):
+    - data/census/tl_2010_25_bg.shp or decennial_census/data/raw/tl_2010_25_bg.shp
+    - Or tl_2010_25_bg10.shp (Census 2010 TIGER naming)
   - NHGIS files (place in decennial_census/data/raw/):
-    - nhgis_1990_block_groups.csv (required for 1990)
-    - nhgis_{2000,2010,2020}_block_groups.csv (optional; same columns as 1990)
-    - nhgis_timeseries_2010_bg.csv (for merged version)
+    - nhgis_timeseries_2010_bg.csv (required)
 
 Output:
   decennial_census/data/merged/block_groups_decennial_merged.geojson
   decennial_census/data/merged/block_groups_decennial_merged_long.csv
-  decennial_census/data/native/block_groups_decennial_{year}.geojson
-  decennial_census/data/native/block_groups_decennial_{year}.csv
 """
 
 from pathlib import Path
@@ -38,7 +30,6 @@ from pathlib import Path
 import geopandas as gpd
 
 import sys
-import os
 
 # Ensure project root (parent of decennial_census) is in sys.path for imports
 PARENT = Path(__file__).resolve().parent.parent
@@ -52,9 +43,9 @@ from mbta_overlap_utils import (
     flatten_stop_buffers,
 )
 
-from decennial_census.download_decennial import download_all, load_nhgis_time_series
+from decennial_census.download_decennial import load_nhgis_time_series
 from decennial_census.merge_to_2010 import build_merged_output
-from decennial_census.preprocess_decennial import preprocess_for_merged, preprocess_native
+from decennial_census.preprocess_decennial import preprocess_for_merged
 
 # -----------------------------------------------------------------------------
 # Configuration
@@ -64,40 +55,22 @@ PROJECT_ROOT = DECENNIAL_ROOT.parent
 CONFIG_PATH = DECENNIAL_ROOT / "config.yaml"
 PROJECT_CONFIG_PATH = PROJECT_ROOT / "config.yaml"
 
-DECENNIAL_YEARS = [1990, 2000, 2010, 2020]
-
 # Paths (relative to project root for shared data)
 DATA_DIR = PROJECT_ROOT / "data"
 MBTA_BOUNDARIES_PATH = DATA_DIR / "mbta_communities" / "mbta_communities.geojson"
 BUFFER_PATH = DATA_DIR / "mbta_stops_with_buffer" / "mbta_stops_with_buffer_collapsed.geojson"
 
-# Block group boundaries by year (check multiple locations)
-BG_PATHS = {
-    1990: [
-        DECENNIAL_ROOT / "data" / "raw" / "tl_1990_25_bg.shp",
-        DECENNIAL_ROOT / "data" / "raw" / "nhgis_1990_bg.shp",
-        DATA_DIR / "census" / "tl_1990_25_bg.shp",
-    ],
-    2000: [
-        DATA_DIR / "census" / "tl_2000_25_bg.shp",
-        DECENNIAL_ROOT / "data" / "raw" / "tl_2000_25_bg.shp",
-    ],
-    2010: [
-        DATA_DIR / "census" / "tl_2010_25_bg.shp",
-        DATA_DIR / "census" / "tl_2010_25_bg10.shp",  # Census 2010 TIGER naming
-        DECENNIAL_ROOT / "data" / "raw" / "tl_2010_25_bg.shp",
-        DECENNIAL_ROOT / "data" / "raw" / "tl_2010_25_bg10.shp",
-    ],
-    2020: [
-        DATA_DIR / "census" / "tl_2024_25_bg.shp",
-        DECENNIAL_ROOT / "data" / "raw" / "tl_2024_25_bg.shp",
-    ],
-}
+# Block group boundaries (2010 census geography only)
+BG_2010_PATHS = [
+    DATA_DIR / "census" / "tl_2010_25_bg.shp",
+    DATA_DIR / "census" / "tl_2010_25_bg10.shp",  # Census 2010 TIGER naming
+    DECENNIAL_ROOT / "data" / "raw" / "tl_2010_25_bg.shp",
+    DECENNIAL_ROOT / "data" / "raw" / "tl_2010_25_bg10.shp",
+]
 
 MAPPING_PATH = DECENNIAL_ROOT / "data" / "decennial_variable_mapping.csv"
 RAW_DIR = DECENNIAL_ROOT / "data" / "raw"
 MERGED_DIR = DECENNIAL_ROOT / "data" / "merged"
-NATIVE_DIR = DECENNIAL_ROOT / "data" / "native"
 
 
 def load_config() -> dict:
@@ -119,9 +92,9 @@ def load_config() -> dict:
     return cfg
 
 
-def _resolve_bg_path(year: int) -> Path | None:
-    """Return first existing block group shapefile path for year."""
-    for p in BG_PATHS.get(year, []):
+def _resolve_bg_2010_path() -> Path | None:
+    """Return first existing 2010 block group shapefile path."""
+    for p in BG_2010_PATHS:
         if p.exists():
             return p
     return None
@@ -145,9 +118,8 @@ def _ensure_geoid(gdf: gpd.GeoDataFrame) -> gpd.GeoDataFrame:
 
 
 def main() -> None:
-    """Run full decennial pipeline."""
+    """Run decennial pipeline (merged only: 2010 geography, NHGIS time series)."""
     cfg = load_config()
-    api_key = (cfg.get("census_api_key") or "").strip()
 
     # Resolve paths
     mbta_path = Path(cfg.get("mbta_boundaries", str(MBTA_BOUNDARIES_PATH)))
@@ -158,7 +130,6 @@ def main() -> None:
         buffer_path = PROJECT_ROOT / buffer_path
 
     MERGED_DIR.mkdir(parents=True, exist_ok=True)
-    NATIVE_DIR.mkdir(parents=True, exist_ok=True)
     RAW_DIR.mkdir(parents=True, exist_ok=True)
 
     # Flatten buffers (shared with ACS pipeline)
@@ -168,87 +139,35 @@ def main() -> None:
     # Merged version (2010 geography)
     # -------------------------------------------------------------------------
     print("\n--- Merged version (2010 geography) ---")
-    bg_2010_path = _resolve_bg_path(2010)
+    bg_2010_path = _resolve_bg_2010_path()
     if not bg_2010_path:
-        print("  Skipping merged: 2010 block group shapefile not found.")
+        print("  Error: 2010 block group shapefile not found.")
         print("  Place tl_2010_25_bg.shp in data/census/ or decennial_census/data/raw/")
-    else:
-        block_groups_2010 = clip_block_groups_to_mbta(bg_2010_path, mbta_path)
-        block_groups_2010 = _ensure_geoid(block_groups_2010)
-        geoids_2010 = block_groups_2010["GEOID"].tolist()
+        print("  Download: https://www2.census.gov/geo/tiger/TIGER2010/BG/2010/tl_2010_25_bg10.zip")
+        return
 
-        overlap_2010 = compute_overlap_counts(block_groups_2010, buffers_gdf)
+    block_groups_2010 = clip_block_groups_to_mbta(bg_2010_path, mbta_path)
+    block_groups_2010 = _ensure_geoid(block_groups_2010)
+    geoids_2010 = block_groups_2010["GEOID"].tolist()
 
-        # Load NHGIS time series (2010 geography)
-        ts_df = load_nhgis_time_series(RAW_DIR)
-        if ts_df.empty:
-            print("  Skipping merged: NHGIS time series not found.")
-            print("  Place nhgis_timeseries_2010_bg.csv in decennial_census/data/raw/")
-        else:
-            ts_processed = preprocess_for_merged(ts_df, MAPPING_PATH, geoids_2010)
-            merged_geo, merged_long = build_merged_output(
-                block_groups_2010, overlap_2010, ts_processed
-            )
-            merged_geo = merged_geo.to_crs(epsg=4326)
-            merged_geo.to_file(MERGED_DIR / "block_groups_decennial_merged.geojson", driver="GeoJSON")
-            merged_long.to_csv(MERGED_DIR / "block_groups_decennial_merged_long.csv", index=False)
-            print(f"  Saved {MERGED_DIR / 'block_groups_decennial_merged.geojson'}")
-            print(f"  Saved {MERGED_DIR / 'block_groups_decennial_merged_long.csv'} ({len(merged_long)} rows)")
+    overlap_2010 = compute_overlap_counts(block_groups_2010, buffers_gdf)
 
-    # -------------------------------------------------------------------------
-    # Native version (per-year geometry)
-    # -------------------------------------------------------------------------
-    print("\n--- Native version (per-year geometry) ---")
+    # Load NHGIS time series (2010 geography)
+    ts_df = load_nhgis_time_series(RAW_DIR)
+    if ts_df.empty:
+        print("  Error: NHGIS time series not found.")
+        print("  Place nhgis_timeseries_2010_bg.csv in decennial_census/data/raw/")
+        return
 
-    # Download Census API (2000, 2010, 2020) and load 1990 from NHGIS (no Census API for 1990)
-    data_by_year = download_all(
-        years=[1990, 2000, 2010, 2020],
-        api_key=api_key,
-        raw_dir=RAW_DIR,
+    ts_processed = preprocess_for_merged(ts_df, MAPPING_PATH, geoids_2010)
+    merged_geo, merged_long = build_merged_output(
+        block_groups_2010, overlap_2010, ts_processed
     )
-
-    # Get MBTA geoids from 2020 boundaries (most current)
-    bg_2020_path = _resolve_bg_path(2020)
-    if bg_2020_path:
-        block_groups_2020 = clip_block_groups_to_mbta(bg_2020_path, mbta_path)
-        block_groups_2020 = _ensure_geoid(block_groups_2020)
-        geoids_mbta = block_groups_2020["GEOID"].tolist()
-    else:
-        geoids_mbta = None
-
-    # Preprocess
-    preprocessed = preprocess_native(data_by_year, MAPPING_PATH, geoids_mbta)
-
-    for year in DECENNIAL_YEARS:
-        bg_path = _resolve_bg_path(year)
-        if not bg_path:
-            print(f"  Skipping {year}: block group shapefile not found.")
-            continue
-
-        block_groups = clip_block_groups_to_mbta(bg_path, mbta_path)
-        block_groups = _ensure_geoid(block_groups)
-        overlap_df = compute_overlap_counts(block_groups, buffers_gdf)
-
-        df = preprocessed.get(year)
-        if df is None or df.empty:
-            # Still output geometry + overlap
-            merged = block_groups.merge(overlap_df, on="GEOID", how="left")
-        else:
-            # Drop year column for join
-            df_join = df.drop(columns=["year"], errors="ignore")
-            merged = block_groups.merge(overlap_df, on="GEOID", how="left")
-            merged = merged.merge(
-                df_join.drop(columns=["geometry"], errors="ignore").drop_duplicates(subset=["GEOID"]),
-                on="GEOID",
-                how="left",
-            )
-
-        merged = merged.to_crs(epsg=4326)
-        merged.to_file(NATIVE_DIR / f"block_groups_decennial_{year}.geojson", driver="GeoJSON")
-        merged.drop(columns=["geometry"], errors="ignore").to_csv(
-            NATIVE_DIR / f"block_groups_decennial_{year}.csv", index=False
-        )
-        print(f"  Saved block_groups_decennial_{year}.geojson, .csv ({len(merged)} features)")
+    merged_geo = merged_geo.to_crs(epsg=4326)
+    merged_geo.to_file(MERGED_DIR / "block_groups_decennial_merged.geojson", driver="GeoJSON")
+    merged_long.to_csv(MERGED_DIR / "block_groups_decennial_merged_long.csv", index=False)
+    print(f"  Saved {MERGED_DIR / 'block_groups_decennial_merged.geojson'}")
+    print(f"  Saved {MERGED_DIR / 'block_groups_decennial_merged_long.csv'} ({len(merged_long)} rows)")
 
     print("\nDone.")
 
