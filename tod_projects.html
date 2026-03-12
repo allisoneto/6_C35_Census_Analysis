@@ -1,0 +1,499 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Transit-Oriented Development — Boston Area</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Playfair+Display:ital,wght@0,700;1,400&family=Source+Sans+3:wght@300;400;600&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" integrity="sha256-p4NxAoJBhIIN+hmNHrzRCf9tD/miZyoHS5obTRR9BMY=" crossorigin="">
+  <style>
+    * { box-sizing: border-box; }
+    body { margin: 0; }
+    .tod-page {
+      font-family: 'Georgia', serif;
+      background: #0d1117;
+      min-height: 100vh;
+      color: #e8e0d0;
+      padding: 48px 28px;
+    }
+    .tod-card {
+      cursor: pointer;
+      transition: transform 0.18s ease, box-shadow 0.18s ease;
+    }
+    .tod-card:hover {
+      transform: translateX(5px);
+      box-shadow: -3px 0 0 #c8a96e;
+    }
+    .tod-card.selected {
+      transform: translateX(7px);
+    }
+    .detail-panel {
+      animation: slideIn 0.22s ease;
+    }
+    @keyframes slideIn {
+      from { opacity: 0; transform: translateY(10px); }
+      to { opacity: 1; transform: translateY(0); }
+    }
+    .yr-label { transition: color 0.18s; }
+    .expand-arrow { transition: transform 0.2s, color 0.2s; }
+    details.tod-item { margin-bottom: 4px; }
+    details.tod-item[open] .tod-card { transform: translateX(7px); }
+    details.tod-item[open] .yr-label { color: #c8a96e; }
+    details.tod-item[open] .expand-arrow { color: #c8a96e; transform: rotate(90deg); }
+    details.tod-item[open] .tod-card h2 { color: #f0e8d8; }
+    summary.tod-card { list-style: none; }
+    summary.tod-card::-webkit-details-marker { display: none; }
+    summary.tod-card::marker { display: none; }
+    #tod-map { height: 420px; max-width: 880px; margin: 48px auto 0; border-radius: 8px; border: 1px solid #1a2028; }
+  </style>
+</head>
+<body>
+  <div class="tod-page">
+    <div style="max-width: 880px; margin: 0 auto 52px;">
+      <div style="font-family: 'Source Sans 3', sans-serif; font-size: 11px; letter-spacing: 0.2em; text-transform: uppercase; color: #c8a96e; margin-bottom: 14px;">
+        Metropolitan Boston · MBTA Corridors
+      </div>
+      <h1 style="font-family: 'Playfair Display', serif; font-size: clamp(30px, 5vw, 50px); font-weight: 700; margin: 0 0 14px; line-height: 1.1; color: #f0e8d8;">
+        Transit-Oriented Development<br>
+        <em style="font-style: italic; font-weight: 400; color: #c8a96e; font-size: 0.78em;">Boston Area · Completed 2012–2024</em>
+      </h1>
+      <p style="font-family: 'Source Sans 3', sans-serif; font-size: 15px; color: #7a7068; max-width: 560px; line-height: 1.65; margin: 0 0 24px;">
+        Major MBTA-adjacent developments combining housing, retail, transit access, and public space — from industrial brownfields to walkable urban neighborhoods. Click any entry to expand.
+      </p>
+      <div style="display: flex; gap: 18px; flex-wrap: wrap;">
+        <div style="display: flex; align-items: center; gap: 7px; font-family: 'Source Sans 3', sans-serif; font-size: 12px; color: #7a7068;">
+          <div style="width: 11px; height: 11px; border-radius: 50%; background: #0055A4;"></div>
+          Blue Line
+        </div>
+        <div style="display: flex; align-items: center; gap: 7px; font-family: 'Source Sans 3', sans-serif; font-size: 12px; color: #7a7068;">
+          <div style="width: 11px; height: 11px; border-radius: 50%; background: #E87722;"></div>
+          Orange Line
+        </div>
+        <div style="display: flex; align-items: center; gap: 7px; font-family: 'Source Sans 3', sans-serif; font-size: 12px; color: #7a7068;">
+          <div style="width: 11px; height: 11px; border-radius: 50%; background: #008150;"></div>
+          Green Line
+        </div>
+        <div style="display: flex; align-items: center; gap: 7px; font-family: 'Source Sans 3', sans-serif; font-size: 12px; color: #7a7068;">
+          <div style="width: 11px; height: 11px; border-radius: 50%; background: #7B2D8B;"></div>
+          Silver Line / Bus
+        </div>
+        <div style="display: flex; align-items: center; gap: 7px; font-family: 'Source Sans 3', sans-serif; font-size: 12px; color: #7a7068;">
+          <div style="width: 11px; height: 11px; border-radius: 50%; background: #DA291C;"></div>
+          Mattapan Trolley
+        </div>
+        <div style="display: flex; align-items: center; gap: 7px; font-family: 'Source Sans 3', sans-serif; font-size: 12px; color: #7a7068;">
+          <div style="width: 11px; height: 11px; border-radius: 50%; background: #80276C;"></div>
+          Commuter Rail
+        </div>
+      </div>
+    </div>
+
+    <div id="timeline" style="max-width: 880px; margin: 0 auto; position: relative;">
+      <div style="position: absolute; left: 72px; top: 0; bottom: 0; width: 1px; background: linear-gradient(to bottom, transparent, #2e2820 60px, #2e2820 calc(100% - 60px), transparent);"></div>
+
+      <details class="tod-item">
+        <summary class="tod-card" style="display: flex; gap: 28px; align-items: flex-start; padding: 18px 0;">
+          <div class="yr-label" style="width: 58px; flex-shrink: 0; text-align: right; font-family: 'Playfair Display', serif; font-size: 19px; font-weight: 700; color: #4a4238; padding-top: 2px;">2012</div>
+          <div style="width: 28px; flex-shrink: 0; display: flex; justify-content: center; padding-top: 7px;"><div style="width: 9px; height: 9px; border-radius: 50%; background: #0055A4; margin-top: 1px;"></div></div>
+          <div style="flex: 1;">
+            <div style="display: flex; align-items: center; gap: 9px; flex-wrap: wrap; margin-bottom: 5px;">
+              <span style="display: inline-block; font-family: 'Source Sans 3', sans-serif; font-size: 10px; font-weight: 600; letter-spacing: 0.12em; text-transform: uppercase; padding: 2px 9px; border-radius: 2px; background: #0055A422; color: #0055A4; border: 1px solid #0055A444;">Blue Line</span>
+              <span style="font-family: 'Source Sans 3', sans-serif; font-size: 10px; color: #4a4238; letter-spacing: 0.08em; text-transform: uppercase;">Transit Infrastructure + TOD Catalyst</span>
+            </div>
+            <h2 style="font-family: 'Playfair Display', serif; font-size: 19px; font-weight: 700; color: #c0a878; margin: 0 0 3px;">Wonderland Intermodal Transit Center</h2>
+            <div style="font-family: 'Source Sans 3', sans-serif; font-size: 12px; color: #5a5248;">Revere, MA — Blue Line (Wonderland)</div>
+          </div>
+          <div class="expand-arrow" style="color: #2e2820; font-size: 16px; padding-top: 7px;">▶</div>
+        </summary>
+        <div class="detail-panel" style="margin-left: 118px; margin-bottom: 14px; background: #121820; border: 1px solid #0055A433; border-left: 3px solid #0055A4; border-radius: 0 8px 8px 0; padding: 22px 26px;">
+          <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 14px 28px; margin-bottom: 18px;">
+            <div><div style="font-family: 'Source Sans 3', sans-serif; font-size: 10px; letter-spacing: 0.14em; text-transform: uppercase; color: #4a4238; margin-bottom: 3px;">Developer</div><div style="font-family: 'Source Sans 3', sans-serif; font-size: 13px; color: #c0a878; font-weight: 600;">MBTA</div></div>
+            <div><div style="font-family: 'Source Sans 3', sans-serif; font-size: 10px; letter-spacing: 0.14em; text-transform: uppercase; color: #4a4238; margin-bottom: 3px;">Scale</div><div style="font-family: 'Source Sans 3', sans-serif; font-size: 13px; color: #c0a878;">$53.5M; 1,465-space parking garage + sheltered busway</div></div>
+          </div>
+          <p style="font-family: 'Source Sans 3', sans-serif; font-size: 14px; line-height: 1.75; color: #8a8070; margin: 0;">A $53.5M reconstruction of Wonderland Station funded partly by the 2009 American Recovery and Reinvestment Act. The project added a major parking garage, a covered busway, bicycle storage, a pedestrian bridge over Ocean Avenue to Revere Beach, and improved North Shore bus connections. It served as the anchor catalyst for adjacent private transit-oriented development along the Blue Line corridor.</p>
+        </div>
+      </details>
+      <div style="margin-left: 118px; height: 1px; background: #171d24;"></div>
+
+      <details class="tod-item">
+        <summary class="tod-card" style="display: flex; gap: 28px; align-items: flex-start; padding: 18px 0;">
+          <div class="yr-label" style="width: 58px; flex-shrink: 0; text-align: right; font-family: 'Playfair Display', serif; font-size: 19px; font-weight: 700; color: #4a4238; padding-top: 2px;">2014</div>
+          <div style="width: 28px; flex-shrink: 0; display: flex; justify-content: center; padding-top: 7px;"><div style="width: 9px; height: 9px; border-radius: 50%; background: #E87722; margin-top: 1px;"></div></div>
+          <div style="flex: 1;">
+            <div style="display: flex; align-items: center; gap: 9px; flex-wrap: wrap; margin-bottom: 5px;">
+              <span style="display: inline-block; font-family: 'Source Sans 3', sans-serif; font-size: 10px; font-weight: 600; letter-spacing: 0.12em; text-transform: uppercase; padding: 2px 9px; border-radius: 2px; background: #E8772222; color: #E87722; border: 1px solid #E8772244;">Orange Line</span>
+              <span style="font-family: 'Source Sans 3', sans-serif; font-size: 10px; color: #4a4238; letter-spacing: 0.08em; text-transform: uppercase;">Mixed-Use TOD</span>
+            </div>
+            <h2 style="font-family: 'Playfair Display', serif; font-size: 19px; font-weight: 700; color: #c0a878; margin: 0 0 3px;">Assembly Station &amp; Assembly Row Phase 1</h2>
+            <div style="font-family: 'Source Sans 3', sans-serif; font-size: 12px; color: #5a5248;">Somerville, MA — Orange Line (Assembly)</div>
+          </div>
+          <div class="expand-arrow" style="color: #2e2820; font-size: 16px; padding-top: 7px;">▶</div>
+        </summary>
+        <div class="detail-panel" style="margin-left: 118px; margin-bottom: 14px; background: #121820; border: 1px solid #E8772233; border-left: 3px solid #E87722; border-radius: 0 8px 8px 0; padding: 22px 26px;">
+          <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 14px 28px; margin-bottom: 18px;">
+            <div><div style="font-family: 'Source Sans 3', sans-serif; font-size: 10px; letter-spacing: 0.14em; text-transform: uppercase; color: #4a4238; margin-bottom: 3px;">Developer</div><div style="font-family: 'Source Sans 3', sans-serif; font-size: 13px; color: #c0a878; font-weight: 600;">Federal Realty Investment Trust + MBTA</div></div>
+            <div><div style="font-family: 'Source Sans 3', sans-serif; font-size: 10px; letter-spacing: 0.14em; text-transform: uppercase; color: #4a4238; margin-bottom: 3px;">Scale</div><div style="font-family: 'Source Sans 3', sans-serif; font-size: 13px; color: #c0a878;">45-acre brownfield; new Orange Line station; 323,000 SF retail</div></div>
+          </div>
+          <p style="font-family: 'Source Sans 3', sans-serif; font-size: 14px; line-height: 1.75; color: #8a8070; margin: 0;">The first new MBTA subway station since 1987, opened September 2, 2014, built by Federal Realty on the former Ford Motor Company assembly plant where the ill-fated Edsel was built. Phase 1 included 323,000 SF of outlet and retail space, a riverfront park, and the dedicated Orange Line stop, with developer contributions helping fund the station itself.</p>
+        </div>
+      </details>
+      <div style="margin-left: 118px; height: 1px; background: #171d24;"></div>
+
+      <details class="tod-item">
+        <summary class="tod-card" style="display: flex; gap: 28px; align-items: flex-start; padding: 18px 0;">
+          <div class="yr-label" style="width: 58px; flex-shrink: 0; text-align: right; font-family: 'Playfair Display', serif; font-size: 19px; font-weight: 700; color: #4a4238; padding-top: 2px;">2015</div>
+          <div style="width: 28px; flex-shrink: 0; display: flex; justify-content: center; padding-top: 7px;"><div style="width: 9px; height: 9px; border-radius: 50%; background: #7B2D8B; margin-top: 1px;"></div></div>
+          <div style="flex: 1;">
+            <div style="display: flex; align-items: center; gap: 9px; flex-wrap: wrap; margin-bottom: 5px;">
+              <span style="display: inline-block; font-family: 'Source Sans 3', sans-serif; font-size: 10px; font-weight: 600; letter-spacing: 0.12em; text-transform: uppercase; padding: 2px 9px; border-radius: 2px; background: #7B2D8B22; color: #7B2D8B; border: 1px solid #7B2D8B44;">Silver Line / Bus</span>
+              <span style="font-family: 'Source Sans 3', sans-serif; font-size: 10px; color: #4a4238; letter-spacing: 0.08em; text-transform: uppercase;">Mixed-Use TOD</span>
+            </div>
+            <h2 style="font-family: 'Playfair Display', serif; font-size: 19px; font-weight: 700; color: #c0a878; margin: 0 0 3px;">Ink Block Phase 1</h2>
+            <div style="font-family: 'Source Sans 3', sans-serif; font-size: 12px; color: #5a5248;">South End, Boston — Silver Line / Bus</div>
+          </div>
+          <div class="expand-arrow" style="color: #2e2820; font-size: 16px; padding-top: 7px;">▶</div>
+        </summary>
+        <div class="detail-panel" style="margin-left: 118px; margin-bottom: 14px; background: #121820; border: 1px solid #7B2D8B33; border-left: 3px solid #7B2D8B; border-radius: 0 8px 8px 0; padding: 22px 26px;">
+          <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 14px 28px; margin-bottom: 18px;">
+            <div><div style="font-family: 'Source Sans 3', sans-serif; font-size: 10px; letter-spacing: 0.14em; text-transform: uppercase; color: #4a4238; margin-bottom: 3px;">Developer</div><div style="font-family: 'Source Sans 3', sans-serif; font-size: 13px; color: #c0a878; font-weight: 600;">National Development</div></div>
+            <div><div style="font-family: 'Source Sans 3', sans-serif; font-size: 10px; letter-spacing: 0.14em; text-transform: uppercase; color: #4a4238; margin-bottom: 3px;">Scale</div><div style="font-family: 'Source Sans 3', sans-serif; font-size: 13px; color: #c0a878;">315 apartments (1 Ink, 2 Ink, 3 Ink); Sepia condos; 50,000 SF Whole Foods</div></div>
+          </div>
+          <p style="font-family: 'Source Sans 3', sans-serif; font-size: 14px; line-height: 1.75; color: #8a8070; margin: 0;">Phase 1 of the redevelopment of the former Boston Herald printing plant at 300 Harrison Ave in the South End's New York Streets neighborhood. Three apartment towers and the Sepia condominium building debuted alongside a flagship Whole Foods and 32,000 SF of street-level retail. The project revitalized a long-underused industrial block within easy reach of Silver Line and multiple MBTA bus routes.</p>
+        </div>
+      </details>
+      <div style="margin-left: 118px; height: 1px; background: #171d24;"></div>
+
+      <details class="tod-item">
+        <summary class="tod-card" style="display: flex; gap: 28px; align-items: flex-start; padding: 18px 0;">
+          <div class="yr-label" style="width: 58px; flex-shrink: 0; text-align: right; font-family: 'Playfair Display', serif; font-size: 19px; font-weight: 700; color: #4a4238; padding-top: 2px;">2017</div>
+          <div style="width: 28px; flex-shrink: 0; display: flex; justify-content: center; padding-top: 7px;"><div style="width: 9px; height: 9px; border-radius: 50%; background: #E87722; margin-top: 1px;"></div></div>
+          <div style="flex: 1;">
+            <div style="display: flex; align-items: center; gap: 9px; flex-wrap: wrap; margin-bottom: 5px;">
+              <span style="display: inline-block; font-family: 'Source Sans 3', sans-serif; font-size: 10px; font-weight: 600; letter-spacing: 0.12em; text-transform: uppercase; padding: 2px 9px; border-radius: 2px; background: #E8772222; color: #E87722; border: 1px solid #E8772244;">Orange Line</span>
+              <span style="font-family: 'Source Sans 3', sans-serif; font-size: 10px; color: #4a4238; letter-spacing: 0.08em; text-transform: uppercase;">Mixed-Use TOD</span>
+            </div>
+            <h2 style="font-family: 'Playfair Display', serif; font-size: 19px; font-weight: 700; color: #c0a878; margin: 0 0 3px;">Assembly Row Phase 2</h2>
+            <div style="font-family: 'Source Sans 3', sans-serif; font-size: 12px; color: #5a5248;">Somerville, MA — Orange Line (Assembly)</div>
+          </div>
+          <div class="expand-arrow" style="color: #2e2820; font-size: 16px; padding-top: 7px;">▶</div>
+        </summary>
+        <div class="detail-panel" style="margin-left: 118px; margin-bottom: 14px; background: #121820; border: 1px solid #E8772233; border-left: 3px solid #E87722; border-radius: 0 8px 8px 0; padding: 22px 26px;">
+          <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 14px 28px; margin-bottom: 18px;">
+            <div><div style="font-family: 'Source Sans 3', sans-serif; font-size: 10px; letter-spacing: 0.14em; text-transform: uppercase; color: #4a4238; margin-bottom: 3px;">Developer</div><div style="font-family: 'Source Sans 3', sans-serif; font-size: 13px; color: #c0a878; font-weight: 600;">Federal Realty Investment Trust</div></div>
+            <div><div style="font-family: 'Source Sans 3', sans-serif; font-size: 10px; letter-spacing: 0.14em; text-transform: uppercase; color: #4a4238; margin-bottom: 3px;">Scale</div><div style="font-family: 'Source Sans 3', sans-serif; font-size: 13px; color: #c0a878;">447-unit Montaje tower; 122-unit Alloy condos; 158-key Marriott hotel; expanded retail</div></div>
+          </div>
+          <p style="font-family: 'Source Sans 3', sans-serif; font-size: 14px; line-height: 1.75; color: #8a8070; margin: 0;">Phase 2 added the 20-story Montaje apartment tower, the Alloy condominium building atop a boutique Marriott Autograph Collection hotel, and expanded the retail/restaurant roster to over 100 tenants. Partners HealthCare (now Mass General Brigham) signed a massive 825,000 SF, 13-story office headquarters at Assembly Row, legitimizing the district as a major employment destination.</p>
+        </div>
+      </details>
+      <div style="margin-left: 118px; height: 1px; background: #171d24;"></div>
+
+      <details class="tod-item">
+        <summary class="tod-card" style="display: flex; gap: 28px; align-items: flex-start; padding: 18px 0;">
+          <div class="yr-label" style="width: 58px; flex-shrink: 0; text-align: right; font-family: 'Playfair Display', serif; font-size: 19px; font-weight: 700; color: #4a4238; padding-top: 2px;">2018</div>
+          <div style="width: 28px; flex-shrink: 0; display: flex; justify-content: center; padding-top: 7px;"><div style="width: 9px; height: 9px; border-radius: 50%; background: #7B2D8B; margin-top: 1px;"></div></div>
+          <div style="flex: 1;">
+            <div style="display: flex; align-items: center; gap: 9px; flex-wrap: wrap; margin-bottom: 5px;">
+              <span style="display: inline-block; font-family: 'Source Sans 3', sans-serif; font-size: 10px; font-weight: 600; letter-spacing: 0.12em; text-transform: uppercase; padding: 2px 9px; border-radius: 2px; background: #7B2D8B22; color: #7B2D8B; border: 1px solid #7B2D8B44;">Silver Line / Bus</span>
+              <span style="font-family: 'Source Sans 3', sans-serif; font-size: 10px; color: #4a4238; letter-spacing: 0.08em; text-transform: uppercase;">Mixed-Use TOD</span>
+            </div>
+            <h2 style="font-family: 'Playfair Display', serif; font-size: 19px; font-weight: 700; color: #c0a878; margin: 0 0 3px;">Ink Block Phase 3 (AC Hotel + Siena Condos)</h2>
+            <div style="font-family: 'Source Sans 3', sans-serif; font-size: 12px; color: #5a5248;">South End, Boston — Silver Line / Bus</div>
+          </div>
+          <div class="expand-arrow" style="color: #2e2820; font-size: 16px; padding-top: 7px;">▶</div>
+        </summary>
+        <div class="detail-panel" style="margin-left: 118px; margin-bottom: 14px; background: #121820; border: 1px solid #7B2D8B33; border-left: 3px solid #7B2D8B; border-radius: 0 8px 8px 0; padding: 22px 26px;">
+          <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 14px 28px; margin-bottom: 18px;">
+            <div><div style="font-family: 'Source Sans 3', sans-serif; font-size: 10px; letter-spacing: 0.14em; text-transform: uppercase; color: #4a4238; margin-bottom: 3px;">Developer</div><div style="font-family: 'Source Sans 3', sans-serif; font-size: 13px; color: #c0a878; font-weight: 600;">National Development</div></div>
+            <div><div style="font-family: 'Source Sans 3', sans-serif; font-size: 10px; letter-spacing: 0.14em; text-transform: uppercase; color: #4a4238; margin-bottom: 3px;">Scale</div><div style="font-family: 'Source Sans 3', sans-serif; font-size: 13px; color: #c0a878;">206-key AC Hotel by Marriott + 76 condominium units at Siena</div></div>
+          </div>
+          <p style="font-family: 'Source Sans 3', sans-serif; font-size: 14px; line-height: 1.75; color: #8a8070; margin: 0;">Phase 3 of Ink Block completed the eastern portion of the site with a 206-room AC Hotel by Marriott and 76 condominiums in the Siena building. The broader Ink Block campus became one of Boston's most successful urban infill TOD projects, bringing over 1,000 residents, a hotel, and significant retail to a transit-accessible former industrial site.</p>
+        </div>
+      </details>
+      <div style="margin-left: 118px; height: 1px; background: #171d24;"></div>
+
+      <details class="tod-item">
+        <summary class="tod-card" style="display: flex; gap: 28px; align-items: flex-start; padding: 18px 0;">
+          <div class="yr-label" style="width: 58px; flex-shrink: 0; text-align: right; font-family: 'Playfair Display', serif; font-size: 19px; font-weight: 700; color: #4a4238; padding-top: 2px;">2018</div>
+          <div style="width: 28px; flex-shrink: 0; display: flex; justify-content: center; padding-top: 7px;"><div style="width: 9px; height: 9px; border-radius: 50%; background: #7B2D8B; margin-top: 1px;"></div></div>
+          <div style="flex: 1;">
+            <div style="display: flex; align-items: center; gap: 9px; flex-wrap: wrap; margin-bottom: 5px;">
+              <span style="display: inline-block; font-family: 'Source Sans 3', sans-serif; font-size: 10px; font-weight: 600; letter-spacing: 0.12em; text-transform: uppercase; padding: 2px 9px; border-radius: 2px; background: #7B2D8B22; color: #7B2D8B; border: 1px solid #7B2D8B44;">Silver Line / Bus</span>
+              <span style="font-family: 'Source Sans 3', sans-serif; font-size: 10px; color: #4a4238; letter-spacing: 0.08em; text-transform: uppercase;">Residential + Retail TOD</span>
+            </div>
+            <h2 style="font-family: 'Playfair Display', serif; font-size: 19px; font-weight: 700; color: #c0a878; margin: 0 0 3px;">345 Harrison Avenue</h2>
+            <div style="font-family: 'Source Sans 3', sans-serif; font-size: 12px; color: #5a5248;">South End, Boston — Silver Line / Bus</div>
+          </div>
+          <div class="expand-arrow" style="color: #2e2820; font-size: 16px; padding-top: 7px;">▶</div>
+        </summary>
+        <div class="detail-panel" style="margin-left: 118px; margin-bottom: 14px; background: #121820; border: 1px solid #7B2D8B33; border-left: 3px solid #7B2D8B; border-radius: 0 8px 8px 0; padding: 22px 26px;">
+          <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 14px 28px; margin-bottom: 18px;">
+            <div><div style="font-family: 'Source Sans 3', sans-serif; font-size: 10px; letter-spacing: 0.14em; text-transform: uppercase; color: #4a4238; margin-bottom: 3px;">Developer</div><div style="font-family: 'Source Sans 3', sans-serif; font-size: 13px; color: #c0a878; font-weight: 600;">National Development</div></div>
+            <div><div style="font-family: 'Source Sans 3', sans-serif; font-size: 10px; letter-spacing: 0.14em; text-transform: uppercase; color: #4a4238; margin-bottom: 3px;">Scale</div><div style="font-family: 'Source Sans 3', sans-serif; font-size: 13px; color: #c0a878;">Two 14-story towers; 585 luxury apartments; 40,000 SF ground-floor retail</div></div>
+          </div>
+          <p style="font-family: 'Source Sans 3', sans-serif; font-size: 14px; line-height: 1.75; color: #8a8070; margin: 0;">Dual residential towers directly across Harrison Avenue from Ink Block, with 585 apartments and 40,000 SF of street-level retail. The development includes extensive bicycle infrastructure and Bluebikes docking stations, and sits within steps of multiple MBTA bus routes and Silver Line rapid transit stops — cementing the New York Streets area as one of Boston's densest transit-oriented residential nodes.</p>
+        </div>
+      </details>
+      <div style="margin-left: 118px; height: 1px; background: #171d24;"></div>
+
+      <details class="tod-item">
+        <summary class="tod-card" style="display: flex; gap: 28px; align-items: flex-start; padding: 18px 0;">
+          <div class="yr-label" style="width: 58px; flex-shrink: 0; text-align: right; font-family: 'Playfair Display', serif; font-size: 19px; font-weight: 700; color: #4a4238; padding-top: 2px;">2019</div>
+          <div style="width: 28px; flex-shrink: 0; display: flex; justify-content: center; padding-top: 7px;"><div style="width: 9px; height: 9px; border-radius: 50%; background: #E87722; margin-top: 1px;"></div></div>
+          <div style="flex: 1;">
+            <div style="display: flex; align-items: center; gap: 9px; flex-wrap: wrap; margin-bottom: 5px;">
+              <span style="display: inline-block; font-family: 'Source Sans 3', sans-serif; font-size: 10px; font-weight: 600; letter-spacing: 0.12em; text-transform: uppercase; padding: 2px 9px; border-radius: 2px; background: #E8772222; color: #E87722; border: 1px solid #E8772244;">Orange Line</span>
+              <span style="font-family: 'Source Sans 3', sans-serif; font-size: 10px; color: #4a4238; letter-spacing: 0.08em; text-transform: uppercase;">Affordable TOD</span>
+            </div>
+            <h2 style="font-family: 'Playfair Display', serif; font-size: 19px; font-weight: 700; color: #c0a878; margin: 0 0 3px;">A.O. Flats at Forest Hills</h2>
+            <div style="font-family: 'Source Sans 3', sans-serif; font-size: 12px; color: #5a5248;">Jamaica Plain, Boston — Orange Line (Forest Hills)</div>
+          </div>
+          <div class="expand-arrow" style="color: #2e2820; font-size: 16px; padding-top: 7px;">▶</div>
+        </summary>
+        <div class="detail-panel" style="margin-left: 118px; margin-bottom: 14px; background: #121820; border: 1px solid #E8772233; border-left: 3px solid #E87722; border-radius: 0 8px 8px 0; padding: 22px 26px;">
+          <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 14px 28px; margin-bottom: 18px;">
+            <div><div style="font-family: 'Source Sans 3', sans-serif; font-size: 10px; letter-spacing: 0.14em; text-transform: uppercase; color: #4a4238; margin-bottom: 3px;">Developer</div><div style="font-family: 'Source Sans 3', sans-serif; font-size: 13px; color: #c0a878; font-weight: 600;">The Community Builders (TCB)</div></div>
+            <div><div style="font-family: 'Source Sans 3', sans-serif; font-size: 10px; letter-spacing: 0.14em; text-transform: uppercase; color: #4a4238; margin-bottom: 3px;">Scale</div><div style="font-family: 'Source Sans 3', sans-serif; font-size: 13px; color: #c0a878;">78 units (100% affordable/mixed-income); 1,500 SF retail; LEED Platinum</div></div>
+          </div>
+          <p style="font-family: 'Source Sans 3', sans-serif; font-size: 14px; line-height: 1.75; color: #8a8070; margin: 0;">A 78-unit affordable mixed-income community built on a formerly vacant MBTA parcel in Jamaica Plain, steps from the Forest Hills Orange Line and commuter rail station. The five-story LEED Platinum-certified building includes ground-floor retail, a pocket park, and bicycle storage. Grand opening was held in September 2019 with Mayor Walsh. The project is cited as a flagship example of how MBTA surplus parcels can deliver affordable transit-adjacent housing.</p>
+        </div>
+      </details>
+      <div style="margin-left: 118px; height: 1px; background: #171d24;"></div>
+
+      <details class="tod-item">
+        <summary class="tod-card" style="display: flex; gap: 28px; align-items: flex-start; padding: 18px 0;">
+          <div class="yr-label" style="width: 58px; flex-shrink: 0; text-align: right; font-family: 'Playfair Display', serif; font-size: 19px; font-weight: 700; color: #4a4238; padding-top: 2px;">2019</div>
+          <div style="width: 28px; flex-shrink: 0; display: flex; justify-content: center; padding-top: 7px;"><div style="width: 9px; height: 9px; border-radius: 50%; background: #E87722; margin-top: 1px;"></div></div>
+          <div style="flex: 1;">
+            <div style="display: flex; align-items: center; gap: 9px; flex-wrap: wrap; margin-bottom: 5px;">
+              <span style="display: inline-block; font-family: 'Source Sans 3', sans-serif; font-size: 10px; font-weight: 600; letter-spacing: 0.12em; text-transform: uppercase; padding: 2px 9px; border-radius: 2px; background: #E8772222; color: #E87722; border: 1px solid #E8772244;">Orange Line / Bus</span>
+              <span style="font-family: 'Source Sans 3', sans-serif; font-size: 10px; color: #4a4238; letter-spacing: 0.08em; text-transform: uppercase;">Affordable Mixed-Use TOD</span>
+            </div>
+            <h2 style="font-family: 'Playfair Display', serif; font-size: 19px; font-weight: 700; color: #c0a878; margin: 0 0 3px;">Bartlett Station Phase 1 (Buildings B + Condos)</h2>
+            <div style="font-family: 'Source Sans 3', sans-serif; font-size: 12px; color: #5a5248;">Roxbury (Nubian Square), Boston — Orange Line / Bus</div>
+          </div>
+          <div class="expand-arrow" style="color: #2e2820; font-size: 16px; padding-top: 7px;">▶</div>
+        </summary>
+        <div class="detail-panel" style="margin-left: 118px; margin-bottom: 14px; background: #121820; border: 1px solid #E8772233; border-left: 3px solid #E87722; border-radius: 0 8px 8px 0; padding: 22px 26px;">
+          <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 14px 28px; margin-bottom: 18px;">
+            <div><div style="font-family: 'Source Sans 3', sans-serif; font-size: 10px; letter-spacing: 0.14em; text-transform: uppercase; color: #4a4238; margin-bottom: 3px;">Developer</div><div style="font-family: 'Source Sans 3', sans-serif; font-size: 13px; color: #c0a878; font-weight: 600;">Nuestra Comunidad Development Corp. + Windale Developers</div></div>
+            <div><div style="font-family: 'Source Sans 3', sans-serif; font-size: 10px; letter-spacing: 0.14em; text-transform: uppercase; color: #4a4238; margin-bottom: 3px;">Scale</div><div style="font-family: 'Source Sans 3', sans-serif; font-size: 13px; color: #c0a878;">60 mixed-income rental units + 16 condominiums; 13,300 SF retail; 8-acre brownfield</div></div>
+          </div>
+          <p style="font-family: 'Source Sans 3', sans-serif; font-size: 14px; line-height: 1.75; color: #8a8070; margin: 0;">Phase 1 of a five-phase redevelopment of the former MBTA Bartlett Bus Yard in Nubian Square. Completed August 2019, the first two buildings delivered 60 affordable rental apartments (Building B) and 16 for-sale condominiums on the 8-acre contaminated brownfield. Two-thirds of units are affordable. The full project envisions ~380 homes, 54,000 SF of commercial space, and the Oasis @ Bartlett public arts plaza. Ribbon cutting was on August 15, 2019.</p>
+        </div>
+      </details>
+      <div style="margin-left: 118px; height: 1px; background: #171d24;"></div>
+
+      <details class="tod-item">
+        <summary class="tod-card" style="display: flex; gap: 28px; align-items: flex-start; padding: 18px 0;">
+          <div class="yr-label" style="width: 58px; flex-shrink: 0; text-align: right; font-family: 'Playfair Display', serif; font-size: 19px; font-weight: 700; color: #4a4238; padding-top: 2px;">2020</div>
+          <div style="width: 28px; flex-shrink: 0; display: flex; justify-content: center; padding-top: 7px;"><div style="width: 9px; height: 9px; border-radius: 50%; background: #008150; margin-top: 1px;"></div></div>
+          <div style="flex: 1;">
+            <div style="display: flex; align-items: center; gap: 9px; flex-wrap: wrap; margin-bottom: 5px;">
+              <span style="display: inline-block; font-family: 'Source Sans 3', sans-serif; font-size: 10px; font-weight: 600; letter-spacing: 0.12em; text-transform: uppercase; padding: 2px 9px; border-radius: 2px; background: #00815022; color: #008150; border: 1px solid #00815044;">Green Line / Commuter Rail</span>
+              <span style="font-family: 'Source Sans 3', sans-serif; font-size: 10px; color: #4a4238; letter-spacing: 0.08em; text-transform: uppercase;">Residential TOD over Mass Pike Air Rights</span>
+            </div>
+            <h2 style="font-family: 'Playfair Display', serif; font-size: 19px; font-weight: 700; color: #c0a878; margin: 0 0 3px;">Bower at Fenway Center (Phase 1)</h2>
+            <div style="font-family: 'Source Sans 3', sans-serif; font-size: 12px; color: #5a5248;">Fenway, Boston — Green Line (Kenmore/Fenway) / Commuter Rail</div>
+          </div>
+          <div class="expand-arrow" style="color: #2e2820; font-size: 16px; padding-top: 7px;">▶</div>
+        </summary>
+        <div class="detail-panel" style="margin-left: 118px; margin-bottom: 14px; background: #121820; border: 1px solid #00815033; border-left: 3px solid #008150; border-radius: 0 8px 8px 0; padding: 22px 26px;">
+          <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 14px 28px; margin-bottom: 18px;">
+            <div><div style="font-family: 'Source Sans 3', sans-serif; font-size: 10px; letter-spacing: 0.14em; text-transform: uppercase; color: #4a4238; margin-bottom: 3px;">Developer</div><div style="font-family: 'Source Sans 3', sans-serif; font-size: 13px; color: #c0a878; font-weight: 600;">Gerding Edlen + Meredith Management + Nuveen Real Estate</div></div>
+            <div><div style="font-family: 'Source Sans 3', sans-serif; font-size: 10px; letter-spacing: 0.14em; text-transform: uppercase; color: #4a4238; margin-bottom: 3px;">Scale</div><div style="font-family: 'Source Sans 3', sans-serif; font-size: 13px; color: #c0a878;">312 units (8-story mid-rise + 14-story tower); $136.6M construction loan</div></div>
+          </div>
+          <p style="font-family: 'Source Sans 3', sans-serif; font-size: 14px; line-height: 1.75; color: #8a8070; margin: 0;">The first completed phase of the Fenway Center transit-oriented development, built over the Massachusetts Turnpike on a 90,000 SF air rights deck — the largest such structure built in Boston in over four decades. The Bower complex includes an eight-story mid-rise and a 14-story tower with 312 residential units, directly adjacent to the Fenway commuter rail stop and Green Line stations. The broader Fenway Center campus, now led by IQHQ, is being developed into nearly 1 million SF of life science space.</p>
+        </div>
+      </details>
+      <div style="margin-left: 118px; height: 1px; background: #171d24;"></div>
+
+      <details class="tod-item">
+        <summary class="tod-card" style="display: flex; gap: 28px; align-items: flex-start; padding: 18px 0;">
+          <div class="yr-label" style="width: 58px; flex-shrink: 0; text-align: right; font-family: 'Playfair Display', serif; font-size: 19px; font-weight: 700; color: #4a4238; padding-top: 2px;">2022</div>
+          <div style="width: 28px; flex-shrink: 0; display: flex; justify-content: center; padding-top: 7px;"><div style="width: 9px; height: 9px; border-radius: 50%; background: #E87722; margin-top: 1px;"></div></div>
+          <div style="flex: 1;">
+            <div style="display: flex; align-items: center; gap: 9px; flex-wrap: wrap; margin-bottom: 5px;">
+              <span style="display: inline-block; font-family: 'Source Sans 3', sans-serif; font-size: 10px; font-weight: 600; letter-spacing: 0.12em; text-transform: uppercase; padding: 2px 9px; border-radius: 2px; background: #E8772222; color: #E87722; border: 1px solid #E8772244;">Orange Line / Bus</span>
+              <span style="font-family: 'Source Sans 3', sans-serif; font-size: 10px; color: #4a4238; letter-spacing: 0.08em; text-transform: uppercase;">Affordable Mixed-Use TOD</span>
+            </div>
+            <h2 style="font-family: 'Playfair Display', serif; font-size: 19px; font-weight: 700; color: #c0a878; margin: 0 0 3px;">Bartlett Station Building A (Phase 1 Completion)</h2>
+            <div style="font-family: 'Source Sans 3', sans-serif; font-size: 12px; color: #5a5248;">Roxbury (Nubian Square), Boston — Orange Line / Bus</div>
+          </div>
+          <div class="expand-arrow" style="color: #2e2820; font-size: 16px; padding-top: 7px;">▶</div>
+        </summary>
+        <div class="detail-panel" style="margin-left: 118px; margin-bottom: 14px; background: #121820; border: 1px solid #E8772233; border-left: 3px solid #E87722; border-radius: 0 8px 8px 0; padding: 22px 26px;">
+          <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 14px 28px; margin-bottom: 18px;">
+            <div><div style="font-family: 'Source Sans 3', sans-serif; font-size: 10px; letter-spacing: 0.14em; text-transform: uppercase; color: #4a4238; margin-bottom: 3px;">Developer</div><div style="font-family: 'Source Sans 3', sans-serif; font-size: 13px; color: #c0a878; font-weight: 600;">Nuestra Comunidad Development Corp. + Windale Developers</div></div>
+            <div><div style="font-family: 'Source Sans 3', sans-serif; font-size: 10px; letter-spacing: 0.14em; text-transform: uppercase; color: #4a4238; margin-bottom: 3px;">Scale</div><div style="font-family: 'Source Sans 3', sans-serif; font-size: 13px; color: #c0a878;">60 mixed-income rental apartments + 12,000 SF commercial; completed Nov. 2022</div></div>
+          </div>
+          <p style="font-family: 'Source Sans 3', sans-serif; font-size: 14px; line-height: 1.75; color: #8a8070; margin: 0;">Construction commenced March 2021 and completed November 2022. Building A added 60 more mixed-income rental homes and 12,000 SF of commercial space to the Bartlett Station campus, completing Phase 1's full apartment component. MassHousing, DHCD, and the City of Boston co-funded the project. The Oasis @ Bartlett public arts plaza — the centerpiece of the site — features art installations, gardens, and performance space honoring Roxbury's multicultural heritage.</p>
+        </div>
+      </details>
+      <div style="margin-left: 118px; height: 1px; background: #171d24;"></div>
+
+      <details class="tod-item">
+        <summary class="tod-card" style="display: flex; gap: 28px; align-items: flex-start; padding: 18px 0;">
+          <div class="yr-label" style="width: 58px; flex-shrink: 0; text-align: right; font-family: 'Playfair Display', serif; font-size: 19px; font-weight: 700; color: #4a4238; padding-top: 2px;">2022</div>
+          <div style="width: 28px; flex-shrink: 0; display: flex; justify-content: center; padding-top: 7px;"><div style="width: 9px; height: 9px; border-radius: 50%; background: #E87722; margin-top: 1px;"></div></div>
+          <div style="flex: 1;">
+            <div style="display: flex; align-items: center; gap: 9px; flex-wrap: wrap; margin-bottom: 5px;">
+              <span style="display: inline-block; font-family: 'Source Sans 3', sans-serif; font-size: 10px; font-weight: 600; letter-spacing: 0.12em; text-transform: uppercase; padding: 2px 9px; border-radius: 2px; background: #E8772222; color: #E87722; border: 1px solid #E8772244;">Orange Line</span>
+              <span style="font-family: 'Source Sans 3', sans-serif; font-size: 10px; color: #4a4238; letter-spacing: 0.08em; text-transform: uppercase;">Affordable TOD</span>
+            </div>
+            <h2 style="font-family: 'Playfair Display', serif; font-size: 19px; font-weight: 700; color: #c0a878; margin: 0 0 3px;">25 Amory Street (Jackson Square Redevelopment)</h2>
+            <div style="font-family: 'Source Sans 3', sans-serif; font-size: 12px; color: #5a5248;">Jamaica Plain, Boston — Orange Line (Jackson Square)</div>
+          </div>
+          <div class="expand-arrow" style="color: #2e2820; font-size: 16px; padding-top: 7px;">▶</div>
+        </summary>
+        <div class="detail-panel" style="margin-left: 118px; margin-bottom: 14px; background: #121820; border: 1px solid #E8772233; border-left: 3px solid #E87722; border-radius: 0 8px 8px 0; padding: 22px 26px;">
+          <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 14px 28px; margin-bottom: 18px;">
+            <div><div style="font-family: 'Source Sans 3', sans-serif; font-size: 10px; letter-spacing: 0.14em; text-transform: uppercase; color: #4a4238; margin-bottom: 3px;">Developer</div><div style="font-family: 'Source Sans 3', sans-serif; font-size: 13px; color: #c0a878; font-weight: 600;">JPNDC (Jamaica Plain Neighborhood Development Corp.)</div></div>
+            <div><div style="font-family: 'Source Sans 3', sans-serif; font-size: 10px; letter-spacing: 0.14em; text-transform: uppercase; color: #4a4238; margin-bottom: 3px;">Scale</div><div style="font-family: 'Source Sans 3', sans-serif; font-size: 13px; color: #c0a878;">44 apartments, 100% affordable; completed January 2022</div></div>
+          </div>
+          <p style="font-family: 'Source Sans 3', sans-serif; font-size: 14px; line-height: 1.75; color: #8a8070; margin: 0;">The first completed building of the new phase of Jackson Square's long-running redevelopment, celebrating its ribbon cutting on June 1, 2022. The 44 fully affordable apartments are on land long vacant after being cleared for a proposed I-95 extension that was never built — parcels that sat empty for up to five decades. By 2022, Jackson Square had delivered 487 new affordable homes over 12 years of redevelopment adjacent to the Orange Line.</p>
+        </div>
+      </details>
+      <div style="margin-left: 118px; height: 1px; background: #171d24;"></div>
+
+      <details class="tod-item">
+        <summary class="tod-card" style="display: flex; gap: 28px; align-items: flex-start; padding: 18px 0;">
+          <div class="yr-label" style="width: 58px; flex-shrink: 0; text-align: right; font-family: 'Playfair Display', serif; font-size: 19px; font-weight: 700; color: #4a4238; padding-top: 2px;">2022</div>
+          <div style="width: 28px; flex-shrink: 0; display: flex; justify-content: center; padding-top: 7px;"><div style="width: 9px; height: 9px; border-radius: 50%; background: #008150; margin-top: 1px;"></div></div>
+          <div style="flex: 1;">
+            <div style="display: flex; align-items: center; gap: 9px; flex-wrap: wrap; margin-bottom: 5px;">
+              <span style="display: inline-block; font-family: 'Source Sans 3', sans-serif; font-size: 10px; font-weight: 600; letter-spacing: 0.12em; text-transform: uppercase; padding: 2px 9px; border-radius: 2px; background: #00815022; color: #008150; border: 1px solid #00815044;">Green Line</span>
+              <span style="font-family: 'Source Sans 3', sans-serif; font-size: 10px; color: #4a4238; letter-spacing: 0.08em; text-transform: uppercase;">Transit Infrastructure + TOD Catalyst</span>
+            </div>
+            <h2 style="font-family: 'Playfair Display', serif; font-size: 19px; font-weight: 700; color: #c0a878; margin: 0 0 3px;">Green Line Extension (GLX) — Union Square Branch</h2>
+            <div style="font-family: 'Source Sans 3', sans-serif; font-size: 12px; color: #5a5248;">Somerville, MA — Green Line (New Union Square Station)</div>
+          </div>
+          <div class="expand-arrow" style="color: #2e2820; font-size: 16px; padding-top: 7px;">▶</div>
+        </summary>
+        <div class="detail-panel" style="margin-left: 118px; margin-bottom: 14px; background: #121820; border: 1px solid #00815033; border-left: 3px solid #008150; border-radius: 0 8px 8px 0; padding: 22px 26px;">
+          <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 14px 28px; margin-bottom: 18px;">
+            <div><div style="font-family: 'Source Sans 3', sans-serif; font-size: 10px; letter-spacing: 0.14em; text-transform: uppercase; color: #4a4238; margin-bottom: 3px;">Developer</div><div style="font-family: 'Source Sans 3', sans-serif; font-size: 13px; color: #c0a878; font-weight: 600;">MBTA / GLX Constructors (design-build)</div></div>
+            <div><div style="font-family: 'Source Sans 3', sans-serif; font-size: 10px; letter-spacing: 0.14em; text-transform: uppercase; color: #4a4238; margin-bottom: 3px;">Scale</div><div style="font-family: 'Source Sans 3', sans-serif; font-size: 13px; color: #c0a878;">$2.28B total project; 7 new stations; 4.3-mile extension</div></div>
+          </div>
+          <p style="font-family: 'Source Sans 3', sans-serif; font-size: 14px; line-height: 1.75; color: #8a8070; margin: 0;">The Union Square Branch of the $2.28 billion Green Line Extension opened March 21, 2022 — the first new Green Line branch since 1987. A rebuilt Lechmere Station in Cambridge (elevated) and the new Union Square terminal in Somerville launched service simultaneously. The Medford Branch (5 additional stations to Medford/Tufts) opened December 12, 2022. The GLX increased the share of Somerville residents living within 0.5 mile of rapid transit from 20% to 80%, and has catalyzed extensive TOD construction in Union Square and along the corridor.</p>
+        </div>
+      </details>
+      <div style="margin-left: 118px; height: 1px; background: #171d24;"></div>
+
+      <details class="tod-item">
+        <summary class="tod-card" style="display: flex; gap: 28px; align-items: flex-start; padding: 18px 0;">
+          <div class="yr-label" style="width: 58px; flex-shrink: 0; text-align: right; font-family: 'Playfair Display', serif; font-size: 19px; font-weight: 700; color: #4a4238; padding-top: 2px;">2022</div>
+          <div style="width: 28px; flex-shrink: 0; display: flex; justify-content: center; padding-top: 7px;"><div style="width: 9px; height: 9px; border-radius: 50%; background: #E87722; margin-top: 1px;"></div></div>
+          <div style="flex: 1;">
+            <div style="display: flex; align-items: center; gap: 9px; flex-wrap: wrap; margin-bottom: 5px;">
+              <span style="display: inline-block; font-family: 'Source Sans 3', sans-serif; font-size: 10px; font-weight: 600; letter-spacing: 0.12em; text-transform: uppercase; padding: 2px 9px; border-radius: 2px; background: #E8772222; color: #E87722; border: 1px solid #E8772244;">Orange Line</span>
+              <span style="font-family: 'Source Sans 3', sans-serif; font-size: 10px; color: #4a4238; letter-spacing: 0.08em; text-transform: uppercase;">Mixed-Use TOD</span>
+            </div>
+            <h2 style="font-family: 'Playfair Display', serif; font-size: 19px; font-weight: 700; color: #c0a878; margin: 0 0 3px;">Assembly Row Phase 3</h2>
+            <div style="font-family: 'Source Sans 3', sans-serif; font-size: 12px; color: #5a5248;">Somerville, MA — Orange Line (Assembly)</div>
+          </div>
+          <div class="expand-arrow" style="color: #2e2820; font-size: 16px; padding-top: 7px;">▶</div>
+        </summary>
+        <div class="detail-panel" style="margin-left: 118px; margin-bottom: 14px; background: #121820; border: 1px solid #E8772233; border-left: 3px solid #E87722; border-radius: 0 8px 8px 0; padding: 22px 26px;">
+          <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 14px 28px; margin-bottom: 18px;">
+            <div><div style="font-family: 'Source Sans 3', sans-serif; font-size: 10px; letter-spacing: 0.14em; text-transform: uppercase; color: #4a4238; margin-bottom: 3px;">Developer</div><div style="font-family: 'Source Sans 3', sans-serif; font-size: 13px; color: #c0a878; font-weight: 600;">Federal Realty Investment Trust</div></div>
+            <div><div style="font-family: 'Source Sans 3', sans-serif; font-size: 10px; letter-spacing: 0.14em; text-transform: uppercase; color: #4a4238; margin-bottom: 3px;">Scale</div><div style="font-family: 'Source Sans 3', sans-serif; font-size: 13px; color: #c0a878;">500-unit Miscela apartments; 277,000 SF office (incl. PUMA HQ); 56,000 SF retail; $465–485M</div></div>
+          </div>
+          <p style="font-family: 'Source Sans 3', sans-serif; font-size: 14px; line-height: 1.75; color: #8a8070; margin: 0;">Phase 3 completed the core buildout of Assembly Row, adding the 500-unit Miscela luxury residential tower, a 277,000 SF LEED-certified office building (home to PUMA North America's HQ with 450 employees, opened 2021), and 56,000 SF of new street-level retail. Assembly Row won the 2022 CoStar Impact Award for best commercial development in Boston. With all three phases complete, the site holds 1.5M SF of office, 1,400+ apartments, a hotel, and over 500,000 SF of retail.</p>
+        </div>
+      </details>
+      <div style="margin-left: 118px; height: 1px; background: #171d24;"></div>
+
+      <details class="tod-item">
+        <summary class="tod-card" style="display: flex; gap: 28px; align-items: flex-start; padding: 18px 0;">
+          <div class="yr-label" style="width: 58px; flex-shrink: 0; text-align: right; font-family: 'Playfair Display', serif; font-size: 19px; font-weight: 700; color: #4a4238; padding-top: 2px;">2023</div>
+          <div style="width: 28px; flex-shrink: 0; display: flex; justify-content: center; padding-top: 7px;"><div style="width: 9px; height: 9px; border-radius: 50%; background: #DA291C; margin-top: 1px;"></div></div>
+          <div style="flex: 1;">
+            <div style="display: flex; align-items: center; gap: 9px; flex-wrap: wrap; margin-bottom: 5px;">
+              <span style="display: inline-block; font-family: 'Source Sans 3', sans-serif; font-size: 10px; font-weight: 600; letter-spacing: 0.12em; text-transform: uppercase; padding: 2px 9px; border-radius: 2px; background: #DA291C22; color: #DA291C; border: 1px solid #DA291C44;">Mattapan Trolley / Commuter Rail</span>
+              <span style="font-family: 'Source Sans 3', sans-serif; font-size: 10px; color: #4a4238; letter-spacing: 0.08em; text-transform: uppercase;">Affordable Mixed-Use TOD</span>
+            </div>
+            <h2 style="font-family: 'Playfair Display', serif; font-size: 19px; font-weight: 700; color: #c0a878; margin: 0 0 3px;">The Loop at Mattapan Station</h2>
+            <div style="font-family: 'Source Sans 3', sans-serif; font-size: 12px; color: #5a5248;">Mattapan Square, Boston — Mattapan Trolley / Commuter Rail</div>
+          </div>
+          <div class="expand-arrow" style="color: #2e2820; font-size: 16px; padding-top: 7px;">▶</div>
+        </summary>
+        <div class="detail-panel" style="margin-left: 118px; margin-bottom: 14px; background: #121820; border: 1px solid #DA291C33; border-left: 3px solid #DA291C; border-radius: 0 8px 8px 0; padding: 22px 26px;">
+          <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 14px 28px; margin-bottom: 18px;">
+            <div><div style="font-family: 'Source Sans 3', sans-serif; font-size: 10px; letter-spacing: 0.14em; text-transform: uppercase; color: #4a4238; margin-bottom: 3px;">Developer</div><div style="font-family: 'Source Sans 3', sans-serif; font-size: 13px; color: #c0a878; font-weight: 600;">Preservation of Affordable Housing (POAH) + Nuestra Comunidad</div></div>
+            <div><div style="font-family: 'Source Sans 3', sans-serif; font-size: 10px; letter-spacing: 0.14em; text-transform: uppercase; color: #4a4238; margin-bottom: 3px;">Scale</div><div style="font-family: 'Source Sans 3', sans-serif; font-size: 13px; color: #c0a878;">135 affordable rental units; 10,000 SF retail (Daily Table grocery); passive house certified; $57M</div></div>
+          </div>
+          <p style="font-family: 'Source Sans 3', sans-serif; font-size: 14px; line-height: 1.75; color: #8a8070; margin: 0;">Grand opening celebrated April 25, 2023, with Mayor Wu and Lt. Governor Driscoll. Built on a vacant MBTA parking lot adjacent to the Mattapan Trolley stop and a block from the Mattapan Commuter Rail Station, the six-story passive house-certified building offers 135 affordable apartments across a range of incomes. Nearly half of units are affordable to households at or below 50% AMI. Ground-floor Daily Table nonprofit grocery serves the community at below-market food prices. Features a basketball court, roof deck, gym, and E-bike station.</p>
+        </div>
+      </details>
+      <div style="margin-left: 118px; height: 1px; background: #171d24;"></div>
+
+      <details class="tod-item">
+        <summary class="tod-card" style="display: flex; gap: 28px; align-items: flex-start; padding: 18px 0;">
+          <div class="yr-label" style="width: 58px; flex-shrink: 0; text-align: right; font-family: 'Playfair Display', serif; font-size: 19px; font-weight: 700; color: #4a4238; padding-top: 2px;">2024</div>
+          <div style="width: 28px; flex-shrink: 0; display: flex; justify-content: center; padding-top: 7px;"><div style="width: 9px; height: 9px; border-radius: 50%; background: #80276C; margin-top: 1px;"></div></div>
+          <div style="flex: 1;">
+            <div style="display: flex; align-items: center; gap: 9px; flex-wrap: wrap; margin-bottom: 5px;">
+              <span style="display: inline-block; font-family: 'Source Sans 3', sans-serif; font-size: 10px; font-weight: 600; letter-spacing: 0.12em; text-transform: uppercase; padding: 2px 9px; border-radius: 2px; background: #80276C22; color: #80276C; border: 1px solid #80276C44;">Commuter Rail (Boston Landing)</span>
+              <span style="font-family: 'Source Sans 3', sans-serif; font-size: 10px; color: #4a4238; letter-spacing: 0.08em; text-transform: uppercase;">Mixed-Use TOD</span>
+            </div>
+            <h2 style="font-family: 'Playfair Display', serif; font-size: 19px; font-weight: 700; color: #c0a878; margin: 0 0 3px;">Allston Yards Building A (Alder + Stop &amp; Shop)</h2>
+            <div style="font-family: 'Source Sans 3', sans-serif; font-size: 12px; color: #5a5248;">Allston, Boston — Boston Landing Commuter Rail</div>
+          </div>
+          <div class="expand-arrow" style="color: #2e2820; font-size: 16px; padding-top: 7px;">▶</div>
+        </summary>
+        <div class="detail-panel" style="margin-left: 118px; margin-bottom: 14px; background: #121820; border: 1px solid #80276C33; border-left: 3px solid #80276C; border-radius: 0 8px 8px 0; padding: 22px 26px;">
+          <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 14px 28px; margin-bottom: 18px;">
+            <div><div style="font-family: 'Source Sans 3', sans-serif; font-size: 10px; letter-spacing: 0.14em; text-transform: uppercase; color: #4a4238; margin-bottom: 3px;">Developer</div><div style="font-family: 'Source Sans 3', sans-serif; font-size: 13px; color: #c0a878; font-weight: 600;">New England Development + Bozzuto + Stop &amp; Shop</div></div>
+            <div><div style="font-family: 'Source Sans 3', sans-serif; font-size: 10px; letter-spacing: 0.14em; text-transform: uppercase; color: #4a4238; margin-bottom: 3px;">Scale</div><div style="font-family: 'Source Sans 3', sans-serif; font-size: 13px; color: #c0a878;">165 rental units (Alder by Bozzuto); urban flagship Stop &amp; Shop; 1-acre community green</div></div>
+          </div>
+          <p style="font-family: 'Source Sans 3', sans-serif; font-size: 14px; line-height: 1.75; color: #8a8070; margin: 0;">The first phase of a 1.4 million SF mixed-use development on the site of a former suburban Stop &amp; Shop, adjacent to the Boston Landing commuter rail stop in Allston. Building A delivered 165 apartments and an urban prototype Stop &amp; Shop grocery store. The Rita Hester Community Green — a one-acre public park named for a beloved local transgender resident — opened June 30, 2024. Future phases will add over 700 more units, 350,000 SF of office/lab space, and 117,000 SF of retail. The project is managed by VHB and required complex coordination with MassDOT, MBTA, and the City.</p>
+        </div>
+      </details>
+    </div>
+
+    <div style="max-width: 880px; margin: 0 auto; padding-top: 48px;">
+      <h2 style="font-family: 'Playfair Display', serif; font-size: 22px; font-weight: 700; color: #f0e8d8; margin: 0 0 16px;">Project Locations</h2>
+      <p style="font-family: 'Source Sans 3', sans-serif; font-size: 14px; color: #7a7068; margin: 0 0 16px;">Click a marker to see project details.</p>
+      <div id="tod-map"></div>
+    </div>
+
+    <div style="max-width: 880px; margin: 44px auto 0; padding-top: 22px; border-top: 1px solid #1a2028; font-family: 'Source Sans 3', sans-serif; font-size: 11px; color: #2e2820;">
+      Sources: MBTA Realty, MassHousing, Boston.gov, Federal Realty Investment Trust, National Development, POAH, JPNDC, Nuestra CDC, Cranshaw Construction, Commercial Property Executive, Boston Globe
+    </div>
+  </div>
+
+  <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js" integrity="sha256-20nQCchB9co0qIjJZRGuk2/Z9VM+kNiyxNV1lvTlZBo=" crossorigin=""></script>
+  <script>
+    const locations = [
+      { name: "Wonderland Intermodal Transit Center", year: 2012, address: "1300 North Shore Road, Revere, MA 02151", lat: 42.4135, lon: -70.9918 },
+      { name: "Assembly Station & Assembly Row Phase 1", year: 2014, address: "455 Grand Union Blvd, Somerville, MA 02145", lat: 42.3937, lon: -71.0790 },
+      { name: "Ink Block Phase 1", year: 2015, address: "300 Harrison Avenue, Boston, MA 02118", lat: 42.3456, lon: -71.0628 },
+      { name: "Assembly Row Phase 2", year: 2017, address: "455 Grand Union Blvd, Somerville, MA 02145", lat: 42.3936, lon: -71.0788 },
+      { name: "Ink Block Phase 3 (AC Hotel + Siena Condos)", year: 2018, address: "300 Harrison Avenue, Boston, MA 02118", lat: 42.3457, lon: -71.0626 },
+      { name: "345 Harrison Avenue", year: 2018, address: "345 Harrison Avenue, Boston, MA 02118", lat: 42.3449, lon: -71.0642 },
+      { name: "A.O. Flats at Forest Hills", year: 2019, address: "95 Hyde Park Avenue, Boston, MA 02130", lat: 42.2978, lon: -71.1154 },
+      { name: "Bartlett Station Phase 1 (Buildings B + Condos)", year: 2019, address: "2565 Washington Street, Boston, MA 02119", lat: 42.3269, lon: -71.0876 },
+      { name: "Bower at Fenway Center (Phase 1)", year: 2020, address: "771 Beacon Street, Boston, MA 02215", lat: 42.3472, lon: -71.1010 },
+      { name: "Bartlett Station Building A (Phase 1 Completion)", year: 2022, address: "2565 Washington Street, Boston, MA 02119", lat: 42.3270, lon: -71.0874 },
+      { name: "25 Amory Street (Jackson Square Redevelopment)", year: 2022, address: "25 Amory Street, Boston, MA 02119", lat: 42.3215, lon: -71.0995 },
+      { name: "Green Line Extension (GLX) — Union Square Branch", year: 2022, address: "Prospect Street at Union Square, Somerville, MA 02143", lat: 42.3771, lon: -71.0943 },
+      { name: "Assembly Row Phase 3", year: 2022, address: "455 Grand Union Blvd, Somerville, MA 02145", lat: 42.3938, lon: -71.0792 },
+      { name: "The Loop at Mattapan Station", year: 2023, address: "466 River Street, Boston, MA 02126", lat: 42.2685, lon: -71.0932 },
+      { name: "Allston Yards Building A (Alder + Stop & Shop)", year: 2024, address: "301 Guest Street, Boston, MA 02134", lat: 42.3536, lon: -71.1350 }
+    ];
+    const map = L.map("tod-map").setView([42.34, -71.08], 11);
+    L.tileLayer("https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png", {
+      attribution: "&copy; <a href=\"https://www.openstreetmap.org/copyright\">OpenStreetMap</a> &copy; <a href=\"https://carto.com/attributions\">CARTO</a>",
+      subdomains: "abcd",
+      maxZoom: 19
+    }).addTo(map);
+    locations.forEach(function(loc) {
+      L.marker([loc.lat, loc.lon])
+        .addTo(map)
+        .bindPopup("<strong>" + loc.name + "</strong><br><span style=\"color:#7a7068;font-size:12px;\">(" + loc.year + ")</span><br>" + loc.address);
+    });
+  </script>
+</body>
+</html>
