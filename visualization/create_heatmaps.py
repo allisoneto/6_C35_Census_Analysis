@@ -168,7 +168,7 @@ def create_heatmaps(
         title = f"Block Groups × Variables ({year})"
 
     fig, ax = plt.subplots(figsize=(max(8, len(x_labels) * 0.5), max(6, len(y_labels) * 0.25)))
-    im = ax.imshow(data, aspect="auto", cmap="YlOrRd")
+    im = ax.imshow(data, aspect="auto", cmap="viridis")
 
     ax.set_xticks(np.arange(len(x_labels)))
     ax.set_yticks(np.arange(len(y_labels)))

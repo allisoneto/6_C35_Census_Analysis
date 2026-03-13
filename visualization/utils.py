@@ -28,6 +28,11 @@ DECENNIAL_MAPPING_PATH = PROJECT_ROOT / "decennial_census" / "data" / "decennial
 MBTA_LINES_PATH = PROJECT_ROOT / "data" / "mbta_lines" / "lines.geojson"
 MBTA_LINE_WIDTH = 0.5  # Thin lines on top of choropleths
 
+# Boston zoom: extent for zoomed choropleths. Bounds in WGS84 (lon, lat): west, south, east, north.
+# Tight zoom on core Red/Green area: Boston, Cambridge, Somerville, Brookline, Jamaica Plain.
+# Excludes Braintree/Quincy (south), Riverside/Newton (west), Wonderland (northeast).
+BOSTON_ZOOM_BOUNDS_WGS84 = (-71.17, 42.30, -71.04, 42.40)
+
 # Census null sentinel (ACS uses this for null/median)
 ACS_NULL = -666666666
 
@@ -134,7 +139,9 @@ def merge_long_with_geometry(
         merged = geo_subset.merge(long_df, on="GEOID", how="left")
     else:
         merged = long_df.merge(geo_subset, on="GEOID", how="left")
-    return gpd.GeoDataFrame(merged, geometry="geometry", crs=geo_gdf.crs)
+    # Defragment: merge of wide long_df (many census columns) creates fragmented
+    # GeoDataFrame; .copy() yields contiguous memory and avoids PerformanceWarning.
+    return merged.copy()
 
 
 def apply_transformation(
@@ -203,12 +210,12 @@ def resolve_denominator(
     source: Literal["acs", "decennial"],
 ) -> float | None:
     """
-    Resolve denominator from mapping spec (e.g., B25001_001E or B25044_002E+B25044_009E).
+    Resolve denominator from mapping spec (e.g., B25001_001E or var1+var2 for sums).
 
     Parameters
     ----------
     denom_spec : str
-        Denominator variable(s), possibly with + (e.g., B25044_002E+B25044_009E).
+        Denominator variable(s), possibly with + for sums (e.g., var1+var2).
     row : pd.Series
         Row of data with variable values.
     source : {"acs", "decennial"}
@@ -258,6 +265,52 @@ def get_source_label(source: Literal["acs", "decennial"]) -> str:
 def get_transform_label(transform: str) -> str:
     """Return human-readable transformation label (e.g., 'per sq m')."""
     return TRANSFORM_LABELS.get(transform, transform)
+
+
+def get_boston_zoom_bounds(
+    target_crs,
+    mbta_path: Path | None = None,
+    buffer_deg: float = 0.0,
+) -> tuple[float, float, float, float]:
+    """
+    Get bounding box for Boston area (Red/Green core) in target CRS.
+
+    Uses BOSTON_ZOOM_BOUNDS_WGS84 for a tight zoom on Boston, Cambridge,
+    Somerville, Brookline, Jamaica Plain. Returns (minx, miny, maxx, maxy).
+
+    Parameters
+    ----------
+    target_crs
+        CRS of the geometry to clip to (e.g., plot_gdf.crs).
+    mbta_path : Path, optional
+        Unused; kept for API compatibility.
+    buffer_deg : float, optional
+        Buffer in degrees to expand bounds. Default 0.
+
+    Returns
+    -------
+    tuple of float
+        (minx, miny, maxx, maxy) in target_crs.
+    """
+    minx, miny, maxx, maxy = BOSTON_ZOOM_BOUNDS_WGS84
+    if buffer_deg:
+        minx -= buffer_deg
+        miny -= buffer_deg
+        maxx += buffer_deg
+        maxy += buffer_deg
+    box_gdf = gpd.GeoDataFrame(
+        geometry=[__box_to_polygon(minx, miny, maxx, maxy)],
+        crs="EPSG:4326",
+    )
+    box_gdf = box_gdf.to_crs(target_crs)
+    return tuple(box_gdf.total_bounds)
+
+
+def __box_to_polygon(minx: float, miny: float, maxx: float, maxy: float):
+    """Create a box polygon from bounds (for CRS transform)."""
+    from shapely.geometry import box
+
+    return box(minx, miny, maxx, maxy)
 
 
 def plot_mbta_routes(ax, plot_gdf: gpd.GeoDataFrame, mbta_path: Path | None = None) -> None:

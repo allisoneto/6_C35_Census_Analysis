@@ -5,6 +5,7 @@ Supports comparing multiple GEOIDs in a single year, or a single GEOID across ye
 """
 
 import argparse
+import math
 from pathlib import Path
 
 import matplotlib.pyplot as plt
@@ -28,6 +29,79 @@ PROJECT_ROOT = Path(__file__).resolve().parent.parent
 DEFAULT_OUTPUT_DIR = PROJECT_ROOT / "output" / "bar_charts"
 
 
+def compute_bar_chart_limits(
+    geoids: list[str],
+    source: str,
+    years: list[int],
+    variables: list[str] | None = None,
+    transform: str = "count",
+) -> dict[str, tuple[float, float]]:
+    """
+    Compute min/max value limits per variable across all years for consistent y-axis scaling.
+
+    Parameters
+    ----------
+    geoids : list of str
+        Block group GEOIDs.
+    source : str
+        "acs" or "decennial".
+    years : list of int
+        Years to include.
+    variables : list of str, optional
+        Variables to include. Default: all non-pie_group from mapping.
+    transform : str
+        Base transformation (per-variable transform from mapping may override).
+
+    Returns
+    -------
+    dict of str -> (float, float)
+        Variable -> (vmin, vmax) for y-axis limits.
+    """
+    long_df, geo_gdf, mapping_df = load_data(source)
+    sub = long_df[long_df["GEOID"].astype(str).isin(geoids) & long_df["year"].isin(years)]
+    if sub.empty:
+        return {}
+
+    aland_col = get_aland_column(geo_gdf, source)
+    pop_col = get_population_column(source)
+    merged = merge_long_with_geometry(sub, geo_gdf, aland_col)
+
+    var_map = mapping_df[
+        mapping_df["transformations"].notna()
+        & (mapping_df["transformations"] != "")
+        & ~mapping_df["transformations"].str.contains("pie_group", na=False)
+    ]
+    if variables:
+        var_map = var_map[var_map["variable"].isin(variables)]
+
+    limits = {}
+    for _, vrow in var_map.iterrows():
+        var = vrow["variable"]
+        if var not in merged.columns:
+            continue
+        trans_opts = vrow["transformations"].split("|")
+        trans_opts = [t.strip() for t in trans_opts if t.strip() != "pie_group"]
+        transform_use = transform if transform in trans_opts else (trans_opts[0] if trans_opts else transform)
+        denom_spec = vrow.get("denominator")
+
+        vals = []
+        for _, row in merged.iterrows():
+            raw = row.get(var)
+            aland = row.get(aland_col)
+            pop = row.get(pop_col) if pop_col in row.index else None
+            denom = resolve_denominator(denom_spec, row, source) if denom_spec else None
+            val = apply_transformation(
+                raw, transform_use,
+                denominator=denom, aland=aland, population=pop,
+                null_sentinel=ACS_NULL if source == "acs" else None,
+            )
+            if val is not None and math.isfinite(val):
+                vals.append(val)
+        if vals:
+            limits[var] = (float(min(vals)), float(max(vals)))
+    return limits
+
+
 def create_bar_chart_comparisons(
     geoids: list[str],
     source: str = "acs",
@@ -35,6 +109,7 @@ def create_bar_chart_comparisons(
     variables: list[str] | None = None,
     output_dir: Path = DEFAULT_OUTPUT_DIR,
     transform: str = "count",
+    variable_limits: dict[str, tuple[float, float]] | None = None,
 ) -> list[Path]:
     """
     Create bar charts comparing selected block groups across variables.
@@ -53,12 +128,17 @@ def create_bar_chart_comparisons(
         Output directory.
     transform : str
         Transformation to apply (count, raw, proportion, etc.).
+    variable_limits : dict of str -> (float, float), optional
+        Per-variable (vmin, vmax) for consistent y-axis scaling across years.
 
     Returns
     -------
     list of Path
         Paths to created PNGs.
     """
+    if not output_dir.exists():
+        output_dir.mkdir(parents=True, exist_ok=True)
+    
     long_df, geo_gdf, mapping_df = load_data(source)
 
     sub = long_df[long_df["GEOID"].astype(str).isin(geoids)]
@@ -155,6 +235,12 @@ def create_bar_chart_comparisons(
             ax.set_xlabel("Census Block Group (GEOID)", fontsize=11)
             plt.xticks(rotation=45, ha="right")
 
+        # Apply consistent y-axis limits across years when provided
+        if variable_limits and var in variable_limits:
+            vmin, vmax = variable_limits[var]
+            if math.isfinite(vmin) and math.isfinite(vmax):
+                ax.set_ylim(vmin, vmax)
+
         source_label = get_source_label(source)
         ax.set_title(
             f"{human_name} — Block Group Comparison\n{source_label}",
@@ -173,7 +259,10 @@ def create_bar_chart_comparisons(
 
         safe_var = var.replace("|", "_").replace("+", "_")
         geoid_label = f"n{len(geoids)}geoids"
-        out_path = output_dir / f"{safe_var}_{geoid_label}.png"
+        # Include year in filename when chart shows single year (matches choropleth per-year output)
+        years_in_plot = plot_df["year"].unique()
+        year_suffix = f"_{int(years_in_plot[0])}" if len(years_in_plot) == 1 else ""
+        out_path = output_dir / f"{safe_var}_{geoid_label}{year_suffix}.png"
         plt.savefig(out_path, dpi=300, bbox_inches="tight")
         plt.close()
         created.append(out_path)

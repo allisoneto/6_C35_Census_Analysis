@@ -29,6 +29,77 @@ PROJECT_ROOT = Path(__file__).resolve().parent.parent
 DEFAULT_OUTPUT_DIR = PROJECT_ROOT / "output" / "scatter_plots"
 
 
+def compute_scatter_limits(
+    x_var: str,
+    y_var: str,
+    source: str,
+    years: list[int],
+    y_transform: str = "count",
+) -> tuple[tuple[float, float] | None, tuple[float, float] | None]:
+    """
+    Compute xlim and ylim for a scatter pair across all years for consistent axis scaling.
+
+    Parameters
+    ----------
+    x_var : str
+        X-axis variable.
+    y_var : str
+        Y-axis variable.
+    source : str
+        "acs" or "decennial".
+    years : list of int
+        Years to include.
+    y_transform : str
+        Transformation for y_var.
+
+    Returns
+    -------
+    tuple of ((xmin, xmax) or None, (ymin, ymax) or None)
+    """
+    long_df, geo_gdf, mapping_df = load_data(source)
+    sub = long_df[long_df["year"].isin(years)]
+    if sub.empty:
+        return None, None
+    if x_var not in sub.columns and x_var not in geo_gdf.columns:
+        return None, None
+    if y_var not in sub.columns:
+        return None, None
+
+    aland_col = get_aland_column(geo_gdf, source)
+    pop_col = get_population_column(source)
+    merged = merge_long_with_geometry(sub, geo_gdf, aland_col)
+    if x_var not in merged.columns and x_var in geo_gdf.columns:
+        geo_extra = geo_gdf[["GEOID", x_var]].drop_duplicates(subset="GEOID")
+        merged = merged.merge(geo_extra, on="GEOID", how="left")
+    if x_var not in merged.columns:
+        return None, None
+
+    var_row = mapping_df[mapping_df["variable"] == y_var]
+    denom_spec = var_row["denominator"].iloc[0] if not var_row.empty else None
+
+    x_vals, y_vals = [], []
+    for _, row in merged.iterrows():
+        xv = row.get(x_var)
+        if pd.notna(xv):
+            raw = row.get(y_var)
+            aland = row.get(aland_col)
+            pop = row.get(pop_col) if pop_col in row.index else None
+            denom = resolve_denominator(denom_spec, row, source) if denom_spec else None
+            val = apply_transformation(
+                raw, y_transform,
+                denominator=denom, aland=aland, population=pop,
+                null_sentinel=ACS_NULL if source == "acs" else None,
+            )
+            if val is not None:
+                x_vals.append(float(xv))
+                y_vals.append(float(val))
+    if not x_vals or not y_vals:
+        return None, None
+    xlim = (min(x_vals), max(x_vals))
+    ylim = (min(y_vals), max(y_vals))
+    return xlim, ylim
+
+
 def create_scatter_plots(
     x_var: str = "overlap_total",
     y_var: str = "B01001_001E",
@@ -36,6 +107,8 @@ def create_scatter_plots(
     year: int | None = None,
     y_transform: str = "count",
     output_dir: Path = DEFAULT_OUTPUT_DIR,
+    xlim: tuple[float, float] | None = None,
+    ylim: tuple[float, float] | None = None,
 ) -> Path | None:
     """
     Create scatter plot: x_var vs y_var. Each point = block group.
@@ -54,6 +127,10 @@ def create_scatter_plots(
         Transformation for y_var (count, per_aland, etc.).
     output_dir : Path
         Output directory.
+    xlim : tuple of (float, float), optional
+        X-axis limits for consistent scaling across years.
+    ylim : tuple of (float, float), optional
+        Y-axis limits for consistent scaling across years.
 
     Returns
     -------
@@ -122,6 +199,10 @@ def create_scatter_plots(
 
     fig, ax = plt.subplots(figsize=(10, 8))
     ax.scatter(plot_df["x"], plot_df["y"], alpha=0.6, s=20)
+    if xlim is not None:
+        ax.set_xlim(xlim)
+    if ylim is not None:
+        ax.set_ylim(ylim)
 
     x_label = get_var_label(x_var, mapping_df)
     y_trans_label = get_transform_label(y_transform)

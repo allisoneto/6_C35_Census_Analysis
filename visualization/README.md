@@ -29,6 +29,7 @@ MBTA route overlay: `data/mbta_lines/lines.geojson` (route_color, route_id). Cho
 | `create_stacked_bar_charts.py` | Stacked bars for pie_group composition |
 | `create_small_multiples.py` | Grid of choropleths across years (MBTA routes overlaid) |
 | `create_heatmaps.py` | Heatmap: GEOIDs × years or GEOIDs × variables |
+| `export_variable_data.py` | Export CSV data for each variable to corresponding output folder |
 
 ## Run All Visualizations
 
@@ -75,6 +76,10 @@ python -m visualization.create_small_multiples --variable CL8AA --transform per_
 
 # Heatmap: block groups × years
 python -m visualization.create_heatmaps --source acs --mode geoids_x_years --variable B01001_001E
+
+# Export variable data to CSV (in corresponding output folders)
+python -m visualization.export_variable_data
+python -m visualization.export_variable_data --sources acs --years 2019
 ```
 
 ## Output Structure

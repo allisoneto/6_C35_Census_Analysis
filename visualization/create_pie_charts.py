@@ -94,21 +94,31 @@ def create_pie_chart(
     if denom_val <= 0:
         return None
 
-    # Build labels and sizes
-    labels = []
+    # Build legend labels (full, no truncation) and sizes
+    legend_labels = []
     sizes = []
     for c in components:
         v = totals.get(c, 0) or 0
         if v > 0:
             pct = v / denom_val
-            labels.append(_shorten_label(mapping_df, c))
+            legend_labels.append(_get_full_label(mapping_df, c))
             sizes.append(pct)
 
     if not sizes:
         return None
 
-    fig, ax = plt.subplots(figsize=(8, 8))
-    ax.pie(sizes, labels=labels, autopct="%1.1f%%", startangle=90)
+    # Wider figure to accommodate side legend; pie on left, legend on right
+    fig, ax = plt.subplots(figsize=(10, 8))
+    wedges, _, autotexts = ax.pie(sizes, labels=None, autopct="%1.1f%%", startangle=90)
+    # Legend on the right with color correspondence; smaller font so long descriptions fit
+    ax.legend(
+        wedges,
+        legend_labels,
+        loc="center left",
+        bbox_to_anchor=(1, 0.5),
+        fontsize=8,
+        frameon=True,
+    )
     group_title = group_name.replace("_", " ").title()
     year_str = str(year) if year else "aggregated"
     source_label = get_source_label(source)
@@ -125,7 +135,8 @@ def create_pie_chart(
         color="gray",
         ha="center",
     )
-    plt.tight_layout(rect=[0, 0.05, 1, 1])
+    # Leave right margin for side legend; pie stays left of center
+    plt.tight_layout(rect=[0, 0.05, 0.75, 1])
 
     # Organize by pie group (human-readable)
     group_dir = output_dir / human_readable_dir_name(group_name)
@@ -147,6 +158,14 @@ def _shorten_label(mapping_df: pd.DataFrame, var: str) -> str:
     if len(name) > 30:
         return name[:27] + "..."
     return name
+
+
+def _get_full_label(mapping_df: pd.DataFrame, var: str) -> str:
+    """Get full human-readable label for variable (no truncation)."""
+    row = mapping_df[mapping_df["variable"] == var]
+    if row.empty:
+        return var
+    return row["human_readable_name"].iloc[0]
 
 
 def create_all_pie_charts(

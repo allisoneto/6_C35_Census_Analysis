@@ -8,6 +8,7 @@ import argparse
 from pathlib import Path
 
 import matplotlib.pyplot as plt
+import matplotlib.colors as mcolors
 import numpy as np
 import pandas as pd
 
@@ -73,6 +74,28 @@ def create_small_multiples(
     denom_spec = var_row["denominator"].iloc[0] if not var_row.empty else None
     human_name = var_row["human_readable_name"].iloc[0] if not var_row.empty else variable
 
+    # Compute global vmin/vmax across all years for consistent color scale across panels.
+    all_values = []
+    for year in years:
+        sub = long_df[long_df["year"] == year]
+        if sub.empty:
+            continue
+        merged = merge_long_with_geometry(sub, geo_gdf, aland_col)
+        for _, r in merged.iterrows():
+            raw = r.get(variable)
+            aland = r.get(aland_col)
+            pop = r.get(pop_col) if pop_col in r.index else None
+            denom = resolve_denominator(denom_spec, r, source) if denom_spec else None
+            val = apply_transformation(
+                raw, transform,
+                denominator=denom, aland=aland, population=pop,
+                null_sentinel=ACS_NULL if source == "acs" else None,
+            )
+            if val is not None:
+                all_values.append(val)
+    vmin = float(min(all_values)) if all_values else None
+    vmax = float(max(all_values)) if all_values else None
+
     n = len(years)
     ncols = min(4, n)
     nrows = (n + ncols - 1) // ncols
@@ -111,14 +134,21 @@ def create_small_multiples(
             )
             values.append(val)
 
-        merged["_plot_value"] = values
+        merged["_plot_value"] = pd.to_numeric(values, errors="coerce")
         plot_df = merged.dropna(subset=["_plot_value"])
 
         if plot_df.empty:
             ax.set_visible(False)
             continue
 
-        plot_df.plot(ax=ax, column="_plot_value", legend=False, cmap="YlOrRd", edgecolor="gray", linewidth=0.2)
+        # Pass norm explicitly; vmin/vmax can be ignored by geopandas, causing white maps
+        plot_kwargs = dict(ax=ax, column="_plot_value", legend=False, cmap="viridis", edgecolor="gray", linewidth=0.2)
+        if vmin is not None and vmax is not None:
+            norm = mcolors.Normalize(vmin=vmin, vmax=vmax)
+            if norm.vmax <= norm.vmin:
+                norm = mcolors.Normalize(vmin=norm.vmin, vmax=norm.vmin + 1.0)
+            plot_kwargs["norm"] = norm
+        plot_df.plot(**plot_kwargs)
         plot_mbta_routes(ax, plot_df)
         ax.set_title(str(year), fontsize=11)
         ax.set_axis_off()
@@ -135,6 +165,13 @@ def create_small_multiples(
         fontsize=14,
         fontweight="bold",
     )
+    # Add shared colorbar with consistent scale across panels
+    if vmin is not None and vmax is not None:
+        norm = mcolors.Normalize(vmin=vmin, vmax=vmax)
+        sm = plt.cm.ScalarMappable(cmap="viridis", norm=norm)
+        sm.set_array([])
+        cbar = fig.colorbar(sm, ax=axes.ravel().tolist(), shrink=0.6)
+        cbar.set_label(trans_label, fontsize=10)
     fig.text(
         0.5,
         0.02,

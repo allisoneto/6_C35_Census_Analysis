@@ -1,0 +1,146 @@
+# Variables for choropleth maps (one map per variable per year per transform)
+ACS_CHORO_VARS:
+  - all
+
+DECENNIAL_CHORO_VARS:
+  - CS5AA   # Families: Married-couple family ~ With own children under 18 years
+  - CM9AA   # Housing units: Occupied
+  - CM9AB   # Housing units: Vacant
+  - CN1AA   # Housing units: Owner occupied
+  - CN1AB   # Housing units: Renter occupied
+  - CR0AA   # Persons: In households ~ Under 18 years
+  - D06AA   # Persons: Under 18 years
+  - CQ1AB   # Persons: In group quarters--Noninstitutionalized
+  - CM5AA   # Families: Total
+  - CM4AA   # Households: Total
+  - CM7AA   # Housing units: Total
+  - CL8AA   # Persons: Total
+  - CN0AA   # Housing units: Vacant--For rent
+  - CN0AB   # Housing units: Vacant--For sale only
+  - CN0AC   # Housing units: Vacant--Rented or sold, not occupied
+  - CN0AD   # Housing units: Vacant--Seasonal, recreational, or occasional use
+  - CN0AE   # Housing units: Vacant--For migrant workers
+  - CN0AF   # Housing units: Vacant--Other vacant
+
+
+# Key variables for non-choropleth chart types
+ACS_BAR_VARS:
+  - B01001_001E   # Total population
+  - B25001_001E   # Total housing units
+  - B19013_001E   # Median household income
+  - B08301_010E   # Public transit commuters
+  - B01002_001E   # Median age
+
+DECENNIAL_BAR_VARS:
+  - CL8AA   # Total population
+  - CM7AA   # Total housing units
+  - CN1AA   # Owner occupied
+  - CN1AB   # Renter occupied
+  - CM0AA   # Male
+
+# Variables for line charts (time series); one chart per variable per transform
+ACS_LINE_VARS:
+  - B01001_001E   # Total population
+  - B25001_001E   # Total housing units
+  - B01001_001E   # Total population
+  - B01002_001E   # Median age
+  - B19013_001E   # Median household income
+  - B17001_002E   # Income below poverty (count)
+  - B17001_001E   # Population for poverty denominator
+  - B25001_001E   # Total housing units
+  - B25077_001E   # Median home value
+  - B25064_001E   # Median gross rent
+  - B25003_002E   # Owner-occupied units
+  - B25003_003E   # Renter-occupied units
+  - B23025_002E   # In labor force
+  - B23025_005E   # Employed
+  - B08301_001E   # Workers (commuters)
+  - B08301_003E   # Drove alone
+  - B08301_010E   # Public transit
+  - B08301_017E   # Bicycle
+  - B08301_018E   # Walked
+  - B08301_019E   # Worked from home
+  - B08303_001E   # Mean commute time (minutes)
+  - B25044_003E   # Owner units, no vehicle
+  - B25044_010E   # Renter units, no vehicle
+  - B25044_004E   # Owner units, 1 vehicle
+  - B25044_011E   # Renter units, 1 vehicle
+  - B25070_001E   # Gross rent as % income - total
+  - B25070_007E   # Rent 30-34.9% of income
+  - B25070_008E   # Rent 35-39.9% of income
+  - B25070_009E   # Rent 40-49.9% of income
+  - B25070_010E   # Rent 50%+ of income
+  - B25024_001E   # Units in structure - total
+  - B25024_002E   # 1 unit detached
+  - B25024_003E   # 1 unit attached
+  - B25024_004E   # 2 units
+  - B25024_005E   # 3 or 4 units
+  - B25024_006E   # 5 to 9 units
+  - B25024_007E   # 10 to 19 units
+  - B25024_008E   # 20 to 49 units
+  - B25024_009E   # 50 or more units
+  - B25034_001E   # Year built - total
+  - B25034_002E   # Built 2020 or later
+  - B25034_003E   # Built 2010 to 2019
+  - B25034_004E   # Built 2000 to 2009
+  - B25034_005E   # Built 1990 to 1999
+  - B25034_006E   # Built 1980 to 1989
+  - B25034_007E   # Built 1970 to 1979
+  - B25034_008E   # Built 1960 to 1969
+  - B25034_009E   # Built 1950 to 1959
+  - B25034_010E   # Built 1940 to 1949
+  - B25034_011E   # Built 1939 or earlier
+  - B25002_001E   # Occupancy - total
+  - B25002_002E   # Occupied units
+  - B25002_003E   # Vacant units
+  - B25010_001E   # Average household size
+DECENNIAL_LINE_VARS:
+  - CL8AA   # Persons: Total
+  - CM7AA   # Housing units: Total
+
+# Each tuple: [x_column, y_column, transformation]
+ACS_SCATTER_PAIRS:
+  - [overlap_total, B01001_001E, count]      # transit vs population
+  - [overlap_total, B01001_001E, per_aland]  # transit vs population density
+  - [overlap_total, B25001_001E, per_aland]  # transit vs housing density
+
+DECENNIAL_SCATTER_PAIRS:
+  - [overlap_total, CL8AA, count]
+  - [overlap_total, CL8AA, per_aland]
+  - [overlap_total, CM7AA, per_aland]
+
+ACS_PIE_GROUPS:
+  - housing_cost_burden
+  - units_in_structure
+  - year_structure_built
+
+DECENNIAL_PIE_GROUPS:
+  - race_of_householder
+  - persons_by_age
+  - tenure_by_race
+  - household_size
+
+ACS_STACKED_GROUPS:
+  - housing_cost_burden
+  - units_in_structure
+
+DECENNIAL_STACKED_GROUPS:
+  - race_of_householder
+  - household_size
+  - occupied_by_household_size
+
+# Variables for small multiples (choropleth grid across years); one chart per variable per transform
+ACS_SMALL_MULT_VARS:
+  - B01001_001E   # Total population
+  - B25001_001E   # Total housing units
+DECENNIAL_SMALL_MULT_VARS:
+  - CL8AA   # Persons: Total
+  - CM7AA   # Housing units: Total
+
+# Variables for heatmaps (GEOIDs x years); one chart per variable per transform
+ACS_HEATMAP_VARS:
+  - B01001_001E   # Total population
+  - B25001_001E   # Total housing units
+DECENNIAL_HEATMAP_VARS:
+  - CL8AA   # Persons: Total
+  - CM7AA   # Housing units: Total

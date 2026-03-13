@@ -228,7 +228,7 @@ fig, ax = plt.subplots(figsize=(12, 10))
 grid_with_counts.plot(
     ax=ax,
     column="overlap_total",
-    cmap="YlOrRd",
+    cmap="viridis",
     legend=True,
     legend_kwds={"label": "Buffers containing cell center", "shrink": 0.6},
     edgecolor="none",
