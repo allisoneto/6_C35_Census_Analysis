@@ -1,59 +1,38 @@
 /**
- * Main D3 orchestration: renders full UI (dropdowns, slider, chart view).
+ * Interactive D3 app: choropleth uses native D3 renderer (zoom, TOD markers, smooth year transitions).
+ * Other chart types fall back to PNG.
  */
 
 import * as d3 from 'd3'
-import type { Manifest, SelectionState } from '../manifest.js'
+import type { Manifest, SelectionState, VisualizationSpec } from '../manifest.js'
 import { renderDropdowns } from './d3Dropdowns.js'
 import { renderYearSlider } from './d3YearSlider.js'
 import { renderChartView } from './d3ChartView.js'
-import { pngRenderer, getImagePath } from './renderers/pngRenderer.js'
+import { getImagePath } from './renderers/pngRenderer.js'
 import { preloadImages } from './preload.js'
+import { renderChoropleth } from './renderers/d3ChoroplethRenderer.js'
+import { getInitialSelection } from './d3App.js'
 
-const SOURCE_ORDER = ['acs', 'decennial', 'decennial_extras'] as const
+export { getInitialSelection }
 
-/** Get default/initial selection from manifest. */
-export function getInitialSelection(manifest: Manifest): SelectionState | null {
-  const chartTypes = manifest.chartTypes
-  if (chartTypes.length === 0) return null
-
-  for (const chartType of chartTypes) {
-    const chart = manifest[chartType as keyof Manifest] as Record<string, { variables: { id: string; label: string; transforms?: string[]; years: number[] }[] }> | undefined
-    if (!chart) continue
-
-    const source = SOURCE_ORDER.find((s) => chart[s]?.variables?.length) ?? 'acs'
-    const src = chart[source]
-    const vars = src?.variables ?? []
-    if (vars.length === 0) continue
-
-    const v = vars[0]
-    const years = v.years ?? []
-    const year = years[0] ?? new Date().getFullYear()
-    const transforms = v.transforms ?? ['default']
-    const transform = transforms[0] ?? 'default'
-
-    return {
-      chartType,
-      source,
-      variable: v.id,
-      variableLabel: v.label,
-      transform,
-      extent: 'whole',
-      year,
-      years,
-      imagePath: '',
-    }
-  }
-  return null
-}
-
-/** Resolve image path for selection (used by pngRenderer and preload). */
+/** Resolve image path for selection. */
 function resolveImagePath(selection: SelectionState, manifest: Manifest): string {
   return getImagePath(selection, manifest)
 }
 
-/** Main render function. */
-export function renderVizApp(
+/** Choropleth uses D3; others use PNG. */
+function getSpec(selection: SelectionState, manifest: Manifest): VisualizationSpec {
+  if (selection.chartType === 'choropleth') {
+    return {
+      type: 'd3',
+      render: (container, sel) => renderChoropleth(container, sel),
+    }
+  }
+  return { type: 'image', url: getImagePath(selection, manifest) }
+}
+
+/** Main render function for interactive page. */
+export function renderInteractiveVizApp(
   container: HTMLElement,
   manifest: Manifest,
   selection: SelectionState | null,
@@ -73,9 +52,10 @@ export function renderVizApp(
     return
   }
 
-  // Only full teardown when chart type/variable/source/transform/extent changes (not year-only)
   const extent = selection.extent ?? 'whole'
-  const chartKey = `${selection.chartType}:${selection.source}:${selection.variable}:${selection.transform}:${extent}`
+  const acsGeography = selection.acsGeography ?? 'unified_2010'
+  const mbtaOverlay = selection.mbtaOverlay ?? 'major'
+  const chartKey = `${selection.chartType}:${selection.source}:${selection.variable}:${selection.transform}:${extent}:${acsGeography}:${mbtaOverlay}`
   const prevChartKey = root.attr('data-chart-key')
   const yearOnlyChange = prevChartKey === chartKey && !root.select('.chart-container').empty()
   if (!yearOnlyChange) {
@@ -83,7 +63,6 @@ export function renderVizApp(
   }
   root.attr('data-chart-key', chartKey)
 
-  // Update imagePath in selection
   const fullSelection: SelectionState = {
     ...selection,
     imagePath: resolveImagePath(selection, manifest),
@@ -93,7 +72,7 @@ export function renderVizApp(
     const next = { ...fullSelection, ...partial }
     next.imagePath = resolveImagePath(next, manifest)
     onChange(next)
-  })
+  }, { showGeography: true, showMbtaOverlay: true })
 
   root.selectAll('.slider-container').data([null]).join(
     (enter) =>
@@ -115,7 +94,7 @@ export function renderVizApp(
       enter.append('div').attr('class', 'chart-container').style('margin-top', '16px')
   )
 
-  const spec = pngRenderer(fullSelection, manifest)
+  const spec = getSpec(fullSelection, manifest)
   renderChartView(
     root.select('.chart-container'),
     spec,
@@ -125,5 +104,7 @@ export function renderVizApp(
     getImagePath
   )
 
-  preloadImages(fullSelection, manifest, getImagePath)
+  if (fullSelection.chartType !== 'choropleth') {
+    preloadImages(fullSelection, manifest, getImagePath)
+  }
 }

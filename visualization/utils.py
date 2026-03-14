@@ -20,6 +20,11 @@ ACS_LONG_PATH = PROJECT_ROOT / "acs" / "data" / "output" / "block_groups_acs_ove
 ACS_GEO_PATH = PROJECT_ROOT / "acs" / "data" / "output" / "block_groups_acs_overlap.geojson"
 ACS_MAPPING_PATH = PROJECT_ROOT / "acs" / "data" / "acs_variable_mapping.csv"
 
+# ACS 2020 geography (native census boundaries; divisions change at 2020)
+# Full coverage for 2022+; pre-2020 years have NaN for new GEOIDs
+ACS_LONG_2020_PATH = PROJECT_ROOT / "acs" / "data" / "output" / "block_groups_acs_overlap_long_2020.csv"
+ACS_GEO_2020_PATH = PROJECT_ROOT / "acs" / "data" / "output" / "block_groups_acs_overlap_2020.geojson"
+
 DECENNIAL_LONG_PATH = PROJECT_ROOT / "decennial_census" / "data" / "merged" / "block_groups_decennial_merged_long.csv"
 DECENNIAL_GEO_PATH = PROJECT_ROOT / "decennial_census" / "data" / "merged" / "block_groups_decennial_merged.geojson"
 DECENNIAL_MAPPING_PATH = PROJECT_ROOT / "decennial_census" / "data" / "decennial_variable_mapping_nhgis.csv"
@@ -79,6 +84,36 @@ def load_data(
     return long_df, geo_gdf, mapping_df
 
 
+def load_data_acs_native(
+) -> tuple[pd.DataFrame, gpd.GeoDataFrame, pd.DataFrame] | None:
+    """
+    Load ACS data with 2020 census block group geography (native boundaries).
+
+    Returns None if the 2020 geography files do not exist (e.g. tl_2020_25_bg.shp
+    was not available when building block groups). Use for ACS choropleth when
+    user selects "native" geography.
+
+    Returns
+    -------
+    tuple or None
+        (long_df, geo_gdf, mapping_df) or None if files missing.
+    """
+    if not ACS_LONG_2020_PATH.exists() or not ACS_GEO_2020_PATH.exists():
+        return None
+
+    long_df = pd.read_csv(ACS_LONG_2020_PATH)
+    long_df["GEOID"] = long_df["GEOID"].astype(str)
+
+    geo_gdf = gpd.read_file(ACS_GEO_2020_PATH)
+    if "GEOID" not in geo_gdf.columns and "GEOID10" in geo_gdf.columns:
+        geo_gdf["GEOID"] = geo_gdf["GEOID10"].astype(str)
+    else:
+        geo_gdf["GEOID"] = geo_gdf["GEOID"].astype(str)
+
+    mapping_df = pd.read_csv(ACS_MAPPING_PATH)
+    return long_df, geo_gdf, mapping_df
+
+
 def get_aland_column(geo_gdf: gpd.GeoDataFrame, source: Literal["acs", "decennial"]) -> str:
     """
     Return the land area column name for the given source.
@@ -96,6 +131,9 @@ def get_aland_column(geo_gdf: gpd.GeoDataFrame, source: Literal["acs", "decennia
         Column name for land area (ALAND or ALAND10).
     """
     if source == "acs":
+        # 2020 geography uses ALAND20; 2010 uses ALAND or ALAND10
+        if "ALAND20" in geo_gdf.columns:
+            return "ALAND20"
         return "ALAND" if "ALAND" in geo_gdf.columns else "ALAND10"
     return "ALAND10" if "ALAND10" in geo_gdf.columns else "ALAND"
 

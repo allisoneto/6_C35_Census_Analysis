@@ -21,7 +21,10 @@ export function getImagePath(
   switch (chartType) {
     case 'choropleth': {
       const humanName = humanReadableDirName(variableLabel)
-      return `${BASE}/maps/${source}/${humanName}/${transform}/${source}_${variable}_${transform}_${year}.png`
+      // Boston zoom PNGs live in boston_zoom subfolder; whole area at transform level
+      const extent = selection.extent ?? 'whole'
+      const extentDir = extent === 'boston' ? 'boston_zoom/' : ''
+      return `${BASE}/maps/${source}/${humanName}/${transform}/${extentDir}${source}_${variable}_${transform}_${year}.png`
     }
     case 'pie_chart': {
       const group = variable

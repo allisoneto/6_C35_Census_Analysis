@@ -1,8 +1,10 @@
-data
-data_a2
-config.yaml
+/data
+/data_a2
+/config.yaml
 __pycache__
 .venv
-output
-output_old
-output_all
+/output
+/output_old
+/output_all
+acs/data
+decennial_census/data

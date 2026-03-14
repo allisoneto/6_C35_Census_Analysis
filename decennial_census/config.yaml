@@ -1,0 +1,12 @@
+# Configuration for Decennial Census Block Group MBTA Overlap pipeline
+# Census API key: https://api.census.gov/data/key_signup.html
+# NHGIS API key: https://account.ipums.org/api_keys (for 1990 data + standardized time series)
+
+# Leave empty to inherit from project root config.yaml (recommended)
+census_api_key: ""
+nhgis_api_key: ""
+
+# Optional path overrides (relative to decennial_census/ or project root)
+data_dir: "data"
+output_merged_dir: "data/merged"
+output_native_dir: "data/native"

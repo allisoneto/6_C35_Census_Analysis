@@ -2,6 +2,7 @@
   import { onMount } from 'svelte'
   import { selection } from './lib/store.js'
   import { renderVizApp, getInitialSelection } from './lib/d3/d3App.js'
+  import NavBar from './lib/NavBar.svelte'
   import type { Manifest } from './lib/manifest.js'
 
   /** Mount point for D3. */
@@ -44,6 +45,7 @@
 
 <div class="app">
   <h1>TOD Census Visualization Viewer</h1>
+  <NavBar currentPage="main" />
   <div bind:this={container} class="viz-mount"></div>
 </div>
 
@@ -56,7 +58,7 @@
   }
   h1 {
     font-size: 1.5rem;
-    margin-bottom: 1rem;
+    margin-bottom: 0.5rem;
   }
   .viz-mount {
     min-height: 200px;
@@ -65,16 +67,38 @@
     display: flex;
     flex-wrap: wrap;
     align-items: center;
-    gap: 8px;
+    justify-content: center;
+    gap: 5px;
     margin-bottom: 8px;
   }
   :global(.chart-select) {
-    font-size: 14px;
-    padding: 4px 8px;
-    border-radius: 4px;
+    font-size: 8.5px;
+    padding: 2px 5px;
+    border-radius: 3px;
     border: 1px solid #ccc;
+  }
+  :global(.controls label) {
+    font-size: 8.5px;
+  }
+  :global(.chart-view-container) {
+    display: flex;
+    justify-content: center;
+    align-items: flex-start;
   }
   :global(.chart-view-container img) {
     display: block;
+  }
+  :global(.slider-container) {
+    display: flex;
+    justify-content: center;
+  }
+  :global(.chart-container) {
+    display: flex;
+    justify-content: center;
+  }
+  :global(.year-prev:hover),
+  :global(.year-next:hover) {
+    background: #c8c8c8 !important;
+    border-color: #4a90d9 !important;
   }
 </style>

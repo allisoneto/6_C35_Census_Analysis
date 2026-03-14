@@ -7,7 +7,8 @@
     "dev": "vite",
     "build": "vite build",
     "preview": "vite preview",
-    "prebuild": "python scripts/build_manifest.py"
+    "prebuild": "python scripts/build_manifest.py",
+    "export-d3-data": "python scripts/export_d3_data.py"
   },
   "devDependencies": {
     "@sveltejs/vite-plugin-svelte": "^7.0.0",
