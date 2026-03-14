@@ -1,0 +1,1101 @@
+{
+  "chartTypes": [
+    "choropleth",
+    "pie_chart",
+    "stacked_bar",
+    "scatter"
+  ],
+  "choropleth": {
+    "acs": {
+      "variables": [
+        {
+          "id": "B25010_001E",
+          "label": "Average Household Size",
+          "transforms": [
+            "raw"
+          ],
+          "years": [
+            2013,
+            2014,
+            2015,
+            2016,
+            2017,
+            2018,
+            2019,
+            2020,
+            2021,
+            2022,
+            2023,
+            2024
+          ]
+        },
+        {
+          "id": "B08301_017E",
+          "label": "Bicycle",
+          "transforms": [
+            "count",
+            "proportion"
+          ],
+          "years": [
+            2013,
+            2014,
+            2015,
+            2016,
+            2017,
+            2018,
+            2019,
+            2020,
+            2021,
+            2022,
+            2023,
+            2024
+          ]
+        },
+        {
+          "id": "B08301_003E",
+          "label": "Drove Alone",
+          "transforms": [
+            "count",
+            "proportion"
+          ],
+          "years": [
+            2013,
+            2014,
+            2015,
+            2016,
+            2017,
+            2018,
+            2019,
+            2020,
+            2021,
+            2022,
+            2023,
+            2024
+          ]
+        },
+        {
+          "id": "B23025_005E",
+          "label": "Employed",
+          "transforms": [
+            "count",
+            "proportion"
+          ],
+          "years": [
+            2013,
+            2014,
+            2015,
+            2016,
+            2017,
+            2018,
+            2019,
+            2020,
+            2021,
+            2022,
+            2023,
+            2024
+          ]
+        },
+        {
+          "id": "B23025_002E",
+          "label": "In Labor Force",
+          "transforms": [
+            "count",
+            "proportion"
+          ],
+          "years": [
+            2013,
+            2014,
+            2015,
+            2016,
+            2017,
+            2018,
+            2019,
+            2020,
+            2021,
+            2022,
+            2023,
+            2024
+          ]
+        },
+        {
+          "id": "B08303_001E",
+          "label": "Mean Commute Time Minutes",
+          "transforms": [
+            "raw"
+          ],
+          "years": [
+            2013,
+            2014,
+            2015,
+            2016,
+            2017,
+            2018,
+            2019,
+            2020,
+            2021,
+            2022,
+            2023,
+            2024
+          ]
+        },
+        {
+          "id": "B01002_001E",
+          "label": "Median Age",
+          "transforms": [
+            "raw"
+          ],
+          "years": [
+            2013,
+            2014,
+            2015,
+            2016,
+            2017,
+            2018,
+            2019,
+            2020,
+            2021,
+            2022,
+            2023,
+            2024
+          ]
+        },
+        {
+          "id": "B25064_001E",
+          "label": "Median Gross Rent",
+          "transforms": [
+            "raw"
+          ],
+          "years": [
+            2013,
+            2014,
+            2015,
+            2016,
+            2017,
+            2018,
+            2019,
+            2020,
+            2021,
+            2022,
+            2023,
+            2024
+          ]
+        },
+        {
+          "id": "B25077_001E",
+          "label": "Median Home Value",
+          "transforms": [
+            "raw"
+          ],
+          "years": [
+            2013,
+            2014,
+            2015,
+            2016,
+            2017,
+            2018,
+            2019,
+            2020,
+            2021,
+            2022,
+            2023,
+            2024
+          ]
+        },
+        {
+          "id": "B19013_001E",
+          "label": "Median Household Income",
+          "transforms": [
+            "raw"
+          ],
+          "years": [
+            2013,
+            2014,
+            2015,
+            2016,
+            2017,
+            2018,
+            2019,
+            2020,
+            2021,
+            2022,
+            2023,
+            2024
+          ]
+        },
+        {
+          "id": "B25002_002E",
+          "label": "Occupied Units",
+          "transforms": [
+            "count",
+            "proportion"
+          ],
+          "years": [
+            2013,
+            2014,
+            2015,
+            2016,
+            2017,
+            2018,
+            2019,
+            2020,
+            2021,
+            2022,
+            2023,
+            2024
+          ]
+        },
+        {
+          "id": "B25003_002E",
+          "label": "Owner Occupied Units",
+          "transforms": [
+            "count",
+            "proportion"
+          ],
+          "years": [
+            2013,
+            2014,
+            2015,
+            2016,
+            2017,
+            2018,
+            2019,
+            2020,
+            2021,
+            2022,
+            2023,
+            2024
+          ]
+        },
+        {
+          "id": "B25044_003E",
+          "label": "Owner Occupied Units With No Vehicle",
+          "transforms": [
+            "count",
+            "proportion"
+          ],
+          "years": [
+            2013,
+            2014,
+            2015,
+            2016,
+            2017,
+            2018,
+            2019,
+            2020,
+            2021,
+            2022,
+            2023,
+            2024
+          ]
+        },
+        {
+          "id": "B08301_010E",
+          "label": "Public Transit",
+          "transforms": [
+            "count",
+            "proportion"
+          ],
+          "years": [
+            2013,
+            2014,
+            2015,
+            2016,
+            2017,
+            2018,
+            2019,
+            2020,
+            2021,
+            2022,
+            2023,
+            2024
+          ]
+        },
+        {
+          "id": "B25003_003E",
+          "label": "Renter Occupied Units",
+          "transforms": [
+            "count",
+            "proportion"
+          ],
+          "years": [
+            2013,
+            2014,
+            2015,
+            2016,
+            2017,
+            2018,
+            2019,
+            2020,
+            2021,
+            2022,
+            2023,
+            2024
+          ]
+        },
+        {
+          "id": "B25044_010E",
+          "label": "Renter Occupied Units With No Vehicle",
+          "transforms": [
+            "count",
+            "proportion"
+          ],
+          "years": [
+            2013,
+            2014,
+            2015,
+            2016,
+            2017,
+            2018,
+            2019,
+            2020,
+            2021,
+            2022,
+            2023,
+            2024
+          ]
+        },
+        {
+          "id": "B25001_001E",
+          "label": "Total Housing Units",
+          "transforms": [
+            "count"
+          ],
+          "years": [
+            2013,
+            2014,
+            2015,
+            2016,
+            2017,
+            2018,
+            2019,
+            2020,
+            2021,
+            2022,
+            2023,
+            2024
+          ]
+        },
+        {
+          "id": "B01001_001E",
+          "label": "Total Population",
+          "transforms": [
+            "count"
+          ],
+          "years": [
+            2013,
+            2014,
+            2015,
+            2016,
+            2017,
+            2018,
+            2019,
+            2020,
+            2021,
+            2022,
+            2023,
+            2024
+          ]
+        },
+        {
+          "id": "B25002_003E",
+          "label": "Vacant Units",
+          "transforms": [
+            "count",
+            "proportion"
+          ],
+          "years": [
+            2013,
+            2014,
+            2015,
+            2016,
+            2017,
+            2018,
+            2019,
+            2020,
+            2021,
+            2022,
+            2023,
+            2024
+          ]
+        },
+        {
+          "id": "B08301_018E",
+          "label": "Walked",
+          "transforms": [
+            "count",
+            "proportion"
+          ],
+          "years": [
+            2013,
+            2014,
+            2015,
+            2016,
+            2017,
+            2018,
+            2019,
+            2020,
+            2021,
+            2022,
+            2023,
+            2024
+          ]
+        },
+        {
+          "id": "B08301_019E",
+          "label": "Worked From Home",
+          "transforms": [
+            "count",
+            "proportion"
+          ],
+          "years": [
+            2013,
+            2014,
+            2015,
+            2016,
+            2017,
+            2018,
+            2019,
+            2020,
+            2021,
+            2022,
+            2023,
+            2024
+          ]
+        },
+        {
+          "id": "B08301_001E",
+          "label": "Workers Commuters",
+          "transforms": [
+            "count"
+          ],
+          "years": [
+            2013,
+            2014,
+            2015,
+            2016,
+            2017,
+            2018,
+            2019,
+            2020,
+            2021,
+            2022,
+            2023,
+            2024
+          ]
+        }
+      ]
+    },
+    "decennial": {
+      "variables": [
+        {
+          "id": "CS5AF",
+          "label": "Families Male Householder No Spouse Present With Own Children Under 18 Years",
+          "transforms": [
+            "count",
+            "proportion"
+          ],
+          "years": [
+            2000,
+            2010
+          ]
+        },
+        {
+          "id": "CS5AG",
+          "label": "Families Male Householder No Spouse Present With Own Children Under 18 Years Under 6 Years Only",
+          "transforms": [
+            "count",
+            "proportion"
+          ],
+          "years": [
+            2000,
+            2010
+          ]
+        },
+        {
+          "id": "CS5AE",
+          "label": "Families Married Couple Family No Own Children Under 18 Years",
+          "transforms": [
+            "count",
+            "proportion"
+          ],
+          "years": [
+            2000,
+            2010
+          ]
+        },
+        {
+          "id": "CS5AA",
+          "label": "Families Married Couple Family With Own Children Under 18 Years",
+          "transforms": [
+            "count",
+            "proportion"
+          ],
+          "years": [
+            2000,
+            2010
+          ]
+        },
+        {
+          "id": "CS5AD",
+          "label": "Families Married Couple Family With Own Children Under 18 Years 6 To 17 Years Only",
+          "transforms": [
+            "count",
+            "proportion"
+          ],
+          "years": [
+            2000,
+            2010
+          ]
+        },
+        {
+          "id": "CS5AC",
+          "label": "Families Married Couple Family With Own Children Under 18 Years Under 6 Years And 6 To 17 Years",
+          "transforms": [
+            "count",
+            "proportion"
+          ],
+          "years": [
+            2000,
+            2010
+          ]
+        },
+        {
+          "id": "CS5AB",
+          "label": "Families Married Couple Family With Own Children Under 18 Years Under 6 Years Only",
+          "transforms": [
+            "count",
+            "proportion"
+          ],
+          "years": [
+            2000,
+            2010
+          ]
+        },
+        {
+          "id": "CM5AA",
+          "label": "Families Total",
+          "transforms": [
+            "count"
+          ],
+          "years": [
+            1990,
+            2000,
+            2010,
+            2020
+          ]
+        },
+        {
+          "id": "CM4AA",
+          "label": "Households Total",
+          "transforms": [
+            "count"
+          ],
+          "years": [
+            1990,
+            2000,
+            2010,
+            2020
+          ]
+        },
+        {
+          "id": "CM9AA",
+          "label": "Housing Units Occupied",
+          "transforms": [
+            "count",
+            "proportion"
+          ],
+          "years": [
+            1990,
+            2000,
+            2010,
+            2020
+          ]
+        },
+        {
+          "id": "CN1AA",
+          "label": "Housing Units Owner Occupied",
+          "transforms": [
+            "count",
+            "proportion"
+          ],
+          "years": [
+            1990,
+            2000,
+            2010,
+            2020
+          ]
+        },
+        {
+          "id": "CN1AB",
+          "label": "Housing Units Renter Occupied",
+          "transforms": [
+            "count",
+            "proportion"
+          ],
+          "years": [
+            1990,
+            2000,
+            2010,
+            2020
+          ]
+        },
+        {
+          "id": "CM7AA",
+          "label": "Housing Units Total",
+          "transforms": [
+            "count"
+          ],
+          "years": [
+            1990,
+            2000,
+            2010,
+            2020
+          ]
+        },
+        {
+          "id": "CM9AB",
+          "label": "Housing Units Vacant",
+          "transforms": [
+            "count",
+            "proportion"
+          ],
+          "years": [
+            1990,
+            2000,
+            2010,
+            2020
+          ]
+        },
+        {
+          "id": "CN0AE",
+          "label": "Housing Units Vacant For Migrant Workers",
+          "transforms": [
+            "count",
+            "proportion"
+          ],
+          "years": [
+            1990,
+            2000,
+            2010,
+            2020
+          ]
+        },
+        {
+          "id": "CN0AA",
+          "label": "Housing Units Vacant For Rent",
+          "transforms": [
+            "count",
+            "proportion"
+          ],
+          "years": [
+            1990,
+            2000,
+            2010,
+            2020
+          ]
+        },
+        {
+          "id": "CN0AB",
+          "label": "Housing Units Vacant For Sale Only",
+          "transforms": [
+            "count",
+            "proportion"
+          ],
+          "years": [
+            1990,
+            2000,
+            2010,
+            2020
+          ]
+        },
+        {
+          "id": "CN0AF",
+          "label": "Housing Units Vacant Other Vacant",
+          "transforms": [
+            "count",
+            "proportion"
+          ],
+          "years": [
+            1990,
+            2000,
+            2010,
+            2020
+          ]
+        },
+        {
+          "id": "CN0AC",
+          "label": "Housing Units Vacant Rented Or Sold Not Occupied",
+          "transforms": [
+            "count",
+            "proportion"
+          ],
+          "years": [
+            1990,
+            2000,
+            2010,
+            2020
+          ]
+        },
+        {
+          "id": "CN0AD",
+          "label": "Housing Units Vacant Seasonal Recreational Or Occasional Use",
+          "transforms": [
+            "count",
+            "proportion"
+          ],
+          "years": [
+            1990,
+            2000,
+            2010,
+            2020
+          ]
+        },
+        {
+          "id": "CQ1AB",
+          "label": "Persons In Group Quarters Noninstitutionalized",
+          "transforms": [
+            "count",
+            "proportion"
+          ],
+          "years": [
+            1990,
+            2000,
+            2010,
+            2020
+          ]
+        },
+        {
+          "id": "CR0AA",
+          "label": "Persons In Households Under 18 Years",
+          "transforms": [
+            "count"
+          ],
+          "years": [
+            1990,
+            2000,
+            2010,
+            2020
+          ]
+        },
+        {
+          "id": "CL8AA",
+          "label": "Persons Total",
+          "transforms": [
+            "count"
+          ],
+          "years": [
+            1990,
+            2000,
+            2010,
+            2020
+          ]
+        },
+        {
+          "id": "D06AA",
+          "label": "Persons Under 18 Years",
+          "transforms": [
+            "count"
+          ],
+          "years": [
+            1990,
+            2000,
+            2010,
+            2020
+          ]
+        }
+      ]
+    }
+  },
+  "pie_chart": {
+    "acs": {
+      "variables": [
+        {
+          "id": "housing_cost_burden",
+          "label": "Housing Cost Burden",
+          "years": [
+            2015,
+            2016,
+            2017,
+            2018,
+            2019,
+            2020,
+            2021,
+            2022,
+            2023,
+            2024
+          ]
+        },
+        {
+          "id": "units_in_structure",
+          "label": "Units In Structure",
+          "years": [
+            2013,
+            2014,
+            2015,
+            2016,
+            2017,
+            2018,
+            2019,
+            2020,
+            2021,
+            2022,
+            2023,
+            2024
+          ]
+        },
+        {
+          "id": "year_structure_built",
+          "label": "Year Structure Built",
+          "years": [
+            2015,
+            2016,
+            2017,
+            2018,
+            2019,
+            2020,
+            2021,
+            2022,
+            2023,
+            2024
+          ]
+        }
+      ]
+    },
+    "decennial": {
+      "variables": [
+        {
+          "id": "household_size",
+          "label": "Household Size",
+          "years": [
+            1990,
+            2000,
+            2010
+          ]
+        },
+        {
+          "id": "persons_by_age",
+          "label": "Persons By Age",
+          "years": [
+            1990,
+            2000,
+            2010,
+            2020
+          ]
+        },
+        {
+          "id": "race_of_householder",
+          "label": "Race Of Householder",
+          "years": [
+            1990,
+            2000,
+            2010,
+            2020
+          ]
+        },
+        {
+          "id": "tenure_by_race",
+          "label": "Tenure By Race",
+          "years": [
+            1990,
+            2000,
+            2010,
+            2020
+          ]
+        }
+      ]
+    }
+  },
+  "bar_chart": {
+    "acs": {
+      "variables": []
+    },
+    "decennial": {
+      "variables": []
+    }
+  },
+  "stacked_bar": {
+    "acs": {
+      "variables": [
+        {
+          "id": "housing_cost_burden",
+          "label": "Housing Cost Burden",
+          "years": [
+            2015,
+            2016,
+            2017,
+            2018,
+            2019,
+            2020,
+            2021,
+            2022,
+            2023,
+            2024
+          ]
+        },
+        {
+          "id": "units_in_structure",
+          "label": "Units In Structure",
+          "years": [
+            2013,
+            2014,
+            2015,
+            2016,
+            2017,
+            2018,
+            2019,
+            2020,
+            2021,
+            2022,
+            2023,
+            2024
+          ]
+        }
+      ]
+    },
+    "decennial": {
+      "variables": [
+        {
+          "id": "household_size",
+          "label": "Household Size",
+          "years": [
+            1990,
+            2000,
+            2010
+          ]
+        },
+        {
+          "id": "occupied_by_household_size",
+          "label": "Occupied By Household Size",
+          "years": [
+            1990,
+            2000,
+            2010,
+            2020
+          ]
+        },
+        {
+          "id": "race_of_householder",
+          "label": "Race Of Householder",
+          "years": [
+            1990,
+            2000,
+            2010,
+            2020
+          ]
+        }
+      ]
+    }
+  },
+  "scatter": {
+    "acs": {
+      "variables": [
+        {
+          "id": "B25001_001E",
+          "label": "Total Housing Units",
+          "transforms": [
+            "per_aland"
+          ],
+          "years": [
+            2013,
+            2014,
+            2015,
+            2016,
+            2017,
+            2018,
+            2019,
+            2020,
+            2021,
+            2022,
+            2023,
+            2024
+          ]
+        },
+        {
+          "id": "B01001_001E",
+          "label": "Total Population",
+          "transforms": [
+            "count"
+          ],
+          "years": [
+            2013,
+            2014,
+            2015,
+            2016,
+            2017,
+            2018,
+            2019,
+            2020,
+            2021,
+            2022,
+            2023,
+            2024
+          ]
+        },
+        {
+          "id": "B01001_001E",
+          "label": "Total Population",
+          "transforms": [
+            "per_aland"
+          ],
+          "years": [
+            2013,
+            2014,
+            2015,
+            2016,
+            2017,
+            2018,
+            2019,
+            2020,
+            2021,
+            2022,
+            2023,
+            2024
+          ]
+        }
+      ]
+    },
+    "decennial": {
+      "variables": [
+        {
+          "id": "CM7AA",
+          "label": "Housing Units Total",
+          "transforms": [
+            "per_aland"
+          ],
+          "years": [
+            1990,
+            2000,
+            2010,
+            2020
+          ]
+        },
+        {
+          "id": "CL8AA",
+          "label": "Persons Total",
+          "transforms": [
+            "count"
+          ],
+          "years": [
+            1990,
+            2000,
+            2010,
+            2020
+          ]
+        },
+        {
+          "id": "CL8AA",
+          "label": "Persons Total",
+          "transforms": [
+            "per_aland"
+          ],
+          "years": [
+            1990,
+            2000,
+            2010,
+            2020
+          ]
+        }
+      ]
+    }
+  }
+}

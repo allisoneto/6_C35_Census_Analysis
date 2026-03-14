@@ -1,16 +1,38 @@
-year,name,address,city,state,zip,lat,lon,notes
-2012,Wonderland Intermodal Transit Center,1300 North Shore Road (Route 1A),Revere,MA,02151,42.4135,-70.9918,MBTA Blue Line terminus; Wikipedia/GeoHack
-2014,Assembly Station & Assembly Row Phase 1,455 Grand Union Blvd,Somerville,MA,02145,42.3937,-71.0790,Federal Realty; Assembly station 42.3924 -71.0773
-2015,Ink Block Phase 1,300 Harrison Avenue,Boston,MA,02118,42.3456,-71.0628,South End New York Streets; Corner/MapQuest
-2017,Assembly Row Phase 2,455 Grand Union Blvd,Somerville,MA,02145,42.3937,-71.0790,Same campus as Phase 1
-2018,Ink Block Phase 3 (AC Hotel + Siena Condos),300 Harrison Avenue,Boston,MA,02118,42.3456,-71.0628,Same campus as Ink Block Phase 1
-2018,345 Harrison Avenue,345 Harrison Avenue,Boston,MA,02118,42.3449,-71.0642,Across from Ink Block; MapQuest
-2019,A.O. Flats at Forest Hills,95 Hyde Park Avenue,Boston,MA,02130,42.2978,-71.1154,Jamaica Plain; Boston.gov/SpotWorkforce
-2019,Bartlett Station Phase 1 (Buildings B + Condos),2565 Washington Street,Boston,MA,02119,42.3269,-71.0876,Nubian Square Roxbury; CommercialSearch
-2020,Bower at Fenway Center (Phase 1),771 Beacon Street,Boston,MA,02215,42.3472,-71.1010,Fenway air rights over Mass Pike; MapQuest
-2022,Bartlett Station Building A (Phase 1 Completion),2565 Washington Street,Boston,MA,02119,42.3269,-71.0876,Same campus as Bartlett Phase 1
-2022,25 Amory Street (Jackson Square Redevelopment),25 Amory Street,Boston,MA,02119,42.3215,-71.0995,Jackson Square JP; near station 42.3229 -71.1000
-2022,Green Line Extension (GLX) — Union Square Branch,Prospect Street at Union Square,Somerville,MA,02143,42.3771,-71.0943,Union Square station; Wikipedia/GeoHack
-2022,Assembly Row Phase 3,455 Grand Union Blvd,Somerville,MA,02145,42.3937,-71.0790,Same campus as Assembly Row Phases 1-2
-2023,The Loop at Mattapan Station,466 River Street,Boston,MA,02126,42.2685,-71.0932,Mattapan Square; adjacent to Mattapan trolley station 42.2675 -71.0931
-2024,Allston Yards Building A (Alder + Stop & Shop),301 Guest Street,Boston,MA,02134,42.3536,-71.1350,Boston Landing area; Alder by Bozzuto
+year,name,address,city,state,zip,lat,lon,notes,source
+2007,Arborpoint at Woodland Station,1940 Washington Street,Newton,MA,02462,42.3331,-71.2436,Green Line D; MBTA parcel; National Development,mbta
+2007,Station Landing,100 Station Landing,Medford,MA,02155,42.4010,-71.0765,Wellington Station Orange Line; mixed-use residential/retail,mbta
+2008,The Carruth,1910 Dorchester Avenue,Boston,MA,02124,42.2848,-71.0605,Ashmont Station Red Line; Trinity Financial; 116 units,mbta
+2009,Avenir,101 Canal Street,Boston,MA,02114,42.3665,-71.0618,North Station; Archstone; 241 units over MBTA headhouses,mbta
+2012,Parcel V & W (Forest Hills),Washington Street at Forest Hills,Boston,MA,02130,42.2978,-71.1155,Forest Hills Orange Line; MBTA parcel; sold 2009; completion year uncertain,mbta
+2012,Wonderland Intermodal Transit Center,1300 North Shore Road (Route 1A),Revere,MA,02151,42.4135,-70.9918,MBTA Blue Line terminus; Wikipedia/GeoHack,unofficial
+2013,225 Centre Street,225 Centre Street,Boston,MA,02119,42.3229,-71.0990,Jackson Square Orange Line; The Community Builders; 103 units,mbta
+2013,The Victor,110 Beverly Street,Boston,MA,02114,42.3662,-71.0618,North Station; 286 apartments; Bulfinch Triangle,mbta
+2014,Assembly Station & Assembly Row Phase 1,455 Grand Union Blvd,Somerville,MA,02145,42.3937,-71.0790,Federal Realty; Assembly station 42.3924 -71.0773,mbta
+2015,One Greenway,0 Kneeland Street,Boston,MA,02111,42.3502,-71.0648,Parcel 24 North; Chinatown; Orange Line/Silver Line,mbta
+2015,Ink Block Phase 1,300 Harrison Avenue,Boston,MA,02118,42.3456,-71.0628,South End New York Streets; Corner/MapQuest,unofficial
+2016,One Canal,1 Canal Street,Boston,MA,02114,42.3658,-71.0605,North Station; 310 units; AIMCO,mbta
+2017,75 Amory Avenue,75 Amory Avenue,Boston,MA,02119,42.3220,-71.1005,Jackson Square Orange Line; JPNDC; 39 affordable units,mbta
+2017,Assembly Row Phase 2,455 Grand Union Blvd,Somerville,MA,02145,42.3937,-71.0790,Same campus as Phase 1,mbta
+2017,Hingham Intermodal Center,1 Shipyard Drive,Hingham,MA,02043,42.2498,-70.8898,Hewitts Cove ferry terminal; MBTA boat service,mbta
+2017,Nashua Street Residences,121 Nashua Street,Boston,MA,02114,42.3660,-71.0620,North Station; AvalonBay; 503 units,mbta
+2017,New Balance Boston Landing Station,80 Guest Street,Boston,MA,02134,42.3525,-71.1340,Commuter Rail Framingham/Worcester Line; New Balance financed,mbta
+2018,Ink Block Phase 3 (AC Hotel + Siena Condos),300 Harrison Avenue,Boston,MA,02118,42.3456,-71.0628,Same campus as Ink Block Phase 1,unofficial
+2018,Parcel 1B,135 Causeway Street,Boston,MA,02114,42.3662,-71.0615,North Station; Related Beal; 239 affordable + Courtyard Marriott,mbta
+2018,345 Harrison Avenue,345 Harrison Avenue,Boston,MA,02118,42.3449,-71.0642,Across from Ink Block; MapQuest,unofficial
+2018,Portside at East Pier Buildings 5 & 6,40 E Pier Drive,Boston,MA,02128,42.3715,-71.0395,Maverick Blue Line; East Boston waterfront,Cranshaw
+2019,A.O. Flats at Forest Hills,95 Hyde Park Avenue,Boston,MA,02130,42.2978,-71.1154,Jamaica Plain; Boston.gov/SpotWorkforce,unofficial
+2019,Bartlett Station Phase 1 (Buildings B + Condos),2565 Washington Street,Boston,MA,02119,42.3269,-71.0876,Nubian Square Roxbury; CommercialSearch,unofficial
+2020,Bower at Fenway Center (Phase 1),771 Beacon Street,Boston,MA,02215,42.3472,-71.1010,Fenway air rights over Mass Pike; MapQuest,unofficial
+2021,125-133 Sumner Street (Harborwalk Residences),125 Sumner Street,Boston,MA,02128,42.3712,-71.0398,East Boston; Maverick Blue Line; 52 units,Cranshaw
+2021,Old Colony Phase 3A,72 Mercer Street,Boston,MA,02127,42.3335,-71.0495,South Boston; Beacon Communities; 135 affordable,Cranshaw
+2021,455 Grand Union Boulevard (PUMA HQ),455 Grand Union Blvd,Somerville,MA,02145,42.3938,-71.0792,Assembly Row; PUMA North America HQ; Cranshaw core/shell,mbta
+2022,Bartlett Station Building A (Phase 1 Completion),2565 Washington Street,Boston,MA,02119,42.3269,-71.0876,Same campus as Bartlett Phase 1,unofficial
+2022,25 Amory Street (Jackson Square Redevelopment),25 Amory Street,Boston,MA,02119,42.3215,-71.0995,Jackson Square JP; near station 42.3229 -71.1000,unofficial
+2022,Green Line Extension (GLX) — Union Square Branch,Prospect Street at Union Square,Somerville,MA,02143,42.3771,-71.0943,Union Square station; Wikipedia/GeoHack,unofficial
+2022,Assembly Row Phase 3 (Miscela),455 Grand Union Blvd,Somerville,MA,02145,42.3938,-71.0792,Same campus as Assembly Row Phases 1-2; 500 units + PUMA,mbta
+2022,7INK,217 Albany Street,Boston,MA,02118,42.3458,-71.0630,South End; Ink Block; inclusive living; Cranshaw,Cranshaw
+2023,The Loop at Mattapan Station,466 River Street,Boston,MA,02126,42.2685,-71.0932,Mattapan Square; adjacent to Mattapan trolley station 42.2675 -71.0931,unofficial
+2023,Prospect Union Square,50 Prospect Street,Somerville,MA,02143,42.3775,-71.0950,Union Square Green Line; 450 units; Magellan,Cranshaw
+2024,Allston Yards Building A (Alder + Stop & Shop),301 Guest Street,Boston,MA,02134,42.3536,-71.1350,Boston Landing area; Alder by Bozzuto,unofficial
+2024,Old Colony Phases 4-5,72-110 Mercer Street,Boston,MA,02127,42.3338,-71.0498,South Boston; Beacon Communities; 208 units,Cranshaw
+2025,The Westcott,125 Essex Street,Swampscott,MA,01907,42.4715,-70.9065,Commuter Rail; 114 units; WinnDevelopment,Cranshaw
