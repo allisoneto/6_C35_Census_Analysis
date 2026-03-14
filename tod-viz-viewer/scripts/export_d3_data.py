@@ -65,9 +65,24 @@ MA_COUNTY_NAMES = {
 }
 
 
+def _to_json_safe_num(val):
+    """
+    Convert value to a JSON-safe number or None. Use when reading from CSV/DataFrame
+    to avoid NaN/Inf (e.g. float("NaN") or pandas NA) ending up in output.
+    """
+    if pd.isna(val):
+        return None
+    try:
+        f = float(val)
+        return f if math.isfinite(f) else None
+    except (TypeError, ValueError):
+        return None
+
+
 def _sanitize_for_json(obj):
     """
     Replace NaN/Inf with None so JSON is valid (JavaScript JSON.parse rejects NaN).
+    Handles numpy scalars (np.float64, etc.) via pd.isna and explicit numeric checks.
     """
     if isinstance(obj, dict):
         return {k: _sanitize_for_json(v) for k, v in obj.items()}
@@ -75,8 +90,17 @@ def _sanitize_for_json(obj):
         return [_sanitize_for_json(x) for x in obj]
     if pd.isna(obj):
         return None
+    # Catch Python float and numpy scalars (np.float64, etc.)
     if isinstance(obj, (int, float)) and (math.isnan(obj) or math.isinf(obj)):
         return None
+    if hasattr(obj, "dtype") and hasattr(obj, "item"):
+        # numpy scalar (np.float64, np.int64, etc.)
+        try:
+            v = obj.item()
+            if isinstance(v, (int, float)) and (math.isnan(v) or math.isinf(v)):
+                return None
+        except (ValueError, AttributeError):
+            pass
     return obj
 
 
@@ -129,6 +153,9 @@ def _compute_global_limits(
     mean, std = np.mean(vals), np.std(vals)
     vmin = mean - 2 * std if std > 0 else float(min(vals))
     vmax = mean + 2 * std if std > 0 else float(max(vals))
+    # Guard against NaN/Inf from edge cases (e.g. all-identical vals with std=nan)
+    if not math.isfinite(vmin) or not math.isfinite(vmax):
+        vmin, vmax = float(min(vals)), float(max(vals))
     return float(vmin), float(vmax)
 
 
@@ -213,26 +240,25 @@ def export_variable(
     output_dir.mkdir(parents=True, exist_ok=True)
     out_path = output_dir / f"{effective_source}_{variable}_{transform}.json"
     with open(out_path, "w", encoding="utf-8") as f:
-        json.dump(out, f, separators=(",", ":"))
+        json.dump(out, f, separators=(",", ":"), allow_nan=False)
     return out_path
 
 
-def export_variable_acs_native(
+def _export_variable_acs_native_variant(
     variable: str,
     transform: str,
     output_dir: Path,
+    variant: str,
+    long_df: pd.DataFrame,
+    geo_gdf,
+    mapping_df: pd.DataFrame,
 ) -> Path | None:
     """
-    Export precomputed values for one ACS variable+transform using 2020 geography.
+    Export precomputed values for one ACS variable+transform for a native geography variant.
 
-    Output: acs_native_{variable}_{transform}.json
-    Returns None if 2020 geography files do not exist.
+    variant: '2010' (years < 2020) or '2020' (years >= 2020).
+    Output: acs_native_{variant}_{variable}_{transform}.json
     """
-    loaded = load_data_acs_native()
-    if loaded is None:
-        return None
-
-    long_df, geo_gdf, mapping_df = loaded
     aland_col = get_aland_column(geo_gdf, "acs")
     if aland_col not in geo_gdf.columns:
         return None
@@ -298,10 +324,56 @@ def export_variable_acs_native(
     })
 
     output_dir.mkdir(parents=True, exist_ok=True)
-    out_path = output_dir / f"acs_native_{variable}_{transform}.json"
+    out_path = output_dir / f"acs_native_{variant}_{variable}_{transform}.json"
     with open(out_path, "w", encoding="utf-8") as f:
-        json.dump(out, f, separators=(",", ":"))
+        json.dump(out, f, separators=(",", ":"), allow_nan=False)
     return out_path
+
+
+def export_variable_acs_native_2010(
+    variable: str,
+    transform: str,
+    output_dir: Path,
+) -> Path | None:
+    """
+    Export precomputed values for ACS native 2010 geography (years before 2020).
+
+    Uses 2010 census block group boundaries. Output: acs_native_2010_{variable}_{transform}.json
+    Returns None if 2010 geography files do not exist.
+    """
+    long_df, geo_gdf, mapping_df = load_data("acs")
+    # Filter to years before 2020 (2010 geography applies to 2010-2019)
+    long_df = long_df[long_df["year"] < 2020]
+    if long_df.empty:
+        return None
+    return _export_variable_acs_native_variant(
+        variable, transform, output_dir, "2010", long_df, geo_gdf, mapping_df
+    )
+
+
+def export_variable_acs_native_2020(
+    variable: str,
+    transform: str,
+    output_dir: Path,
+) -> Path | None:
+    """
+    Export precomputed values for ACS native 2020 geography (years 2020 and later).
+
+    Uses 2020 census block group boundaries. Output: acs_native_2020_{variable}_{transform}.json
+    Returns None if 2020 geography files do not exist.
+    """
+    loaded = load_data_acs_native()
+    if loaded is None:
+        return None
+
+    long_df, geo_gdf, mapping_df = loaded
+    # Filter to years 2020 and later (2020 geography applies from 2020 onward)
+    long_df = long_df[long_df["year"] >= 2020]
+    if long_df.empty:
+        return None
+    return _export_variable_acs_native_variant(
+        variable, transform, output_dir, "2020", long_df, geo_gdf, mapping_df
+    )
 
 
 def export_metadata(source: str, output_dir: Path = DATA_DIR) -> Path | None:
@@ -359,6 +431,12 @@ def export_metadata(source: str, output_dir: Path = DATA_DIR) -> Path | None:
         else [""] * len(geoids)
     )
     county_names = [MA_COUNTY_NAMES.get(c, c or "—") for c in county_fips]
+    # Town from MBTA community (centroid-based); prefer over county for tooltip
+    town_names = (
+        geo_gdf["town"].fillna("").astype(str).str.strip().tolist()
+        if "town" in geo_gdf.columns
+        else [""] * len(geoids)
+    )
 
     long_df = pd.read_csv(long_path)
     long_df["GEOID"] = long_df["GEOID"].astype(str)
@@ -376,7 +454,7 @@ def export_metadata(source: str, output_dir: Path = DATA_DIR) -> Path | None:
             geoid = str(row["GEOID"])
             if geoid in geoid_to_idx:
                 val = row.get(pop_col)
-                arr[geoid_to_idx[geoid]] = None if pd.isna(val) else float(val)
+                arr[geoid_to_idx[geoid]] = _to_json_safe_num(val)
         population_by_year[str(year)] = arr
 
     out = _sanitize_for_json({
@@ -386,23 +464,24 @@ def export_metadata(source: str, output_dir: Path = DATA_DIR) -> Path | None:
         "land_area": land_area,
         "county_fips": county_fips,
         "county_name": county_names,
+        "town_name": town_names,
     })
 
     out_dir = output_dir / "metadata"
     out_dir.mkdir(parents=True, exist_ok=True)
     out_path = out_dir / f"block_groups_{source}_metadata.json"
     with open(out_path, "w", encoding="utf-8") as f:
-        json.dump(out, f, separators=(",", ":"))
+        json.dump(out, f, separators=(",", ":"), allow_nan=False)
     return out_path
 
 
-def export_metadata_acs_native(output_dir: Path = DATA_DIR) -> Path | None:
-    """Export metadata for ACS native (2020) geography."""
-    loaded = load_data_acs_native()
-    if loaded is None:
-        return None
-
-    long_df, geo_gdf, _ = loaded
+def _export_metadata_acs_native_variant(
+    output_dir: Path,
+    variant: str,
+    long_df: pd.DataFrame,
+    geo_gdf,
+) -> Path | None:
+    """Export metadata for one ACS native geography variant (2010 or 2020)."""
     aland_col = get_aland_column(geo_gdf, "acs")
     if aland_col not in geo_gdf.columns:
         return None
@@ -410,6 +489,7 @@ def export_metadata_acs_native(output_dir: Path = DATA_DIR) -> Path | None:
     pop_col = get_population_column("acs")
     county_col = "COUNTYFP10" if "COUNTYFP10" in geo_gdf.columns else "COUNTYFP20" if "COUNTYFP20" in geo_gdf.columns else "COUNTYFP"
 
+    geo_gdf = geo_gdf.copy()
     geo_gdf["GEOID"] = geo_gdf["GEOID"].astype(str) if "GEOID" in geo_gdf.columns else geo_gdf["GEOID10"].astype(str)
     geoids = geo_gdf["GEOID"].tolist()
     land_area = geo_gdf[aland_col].fillna(0).astype(float).tolist()
@@ -419,7 +499,13 @@ def export_metadata_acs_native(output_dir: Path = DATA_DIR) -> Path | None:
         else [""] * len(geoids)
     )
     county_names = [MA_COUNTY_NAMES.get(c, c or "—") for c in county_fips]
+    town_names = (
+        geo_gdf["town"].fillna("").astype(str).str.strip().tolist()
+        if "town" in geo_gdf.columns
+        else [""] * len(geoids)
+    )
 
+    long_df = long_df.copy()
     long_df["GEOID"] = long_df["GEOID"].astype(str)
     geoid_to_idx = {g: i for i, g in enumerate(geoids)}
     years = sorted(long_df["year"].dropna().unique().astype(int).tolist())
@@ -435,7 +521,7 @@ def export_metadata_acs_native(output_dir: Path = DATA_DIR) -> Path | None:
             geoid = str(row["GEOID"])
             if geoid in geoid_to_idx:
                 val = row.get(pop_col)
-                arr[geoid_to_idx[geoid]] = None if pd.isna(val) else float(val)
+                arr[geoid_to_idx[geoid]] = _to_json_safe_num(val)
         population_by_year[str(year)] = arr
 
     out = _sanitize_for_json({
@@ -445,23 +531,52 @@ def export_metadata_acs_native(output_dir: Path = DATA_DIR) -> Path | None:
         "land_area": land_area,
         "county_fips": county_fips,
         "county_name": county_names,
+        "town_name": town_names,
     })
 
     out_dir = output_dir / "metadata"
     out_dir.mkdir(parents=True, exist_ok=True)
-    out_path = out_dir / "block_groups_acs_native_metadata.json"
+    out_path = out_dir / f"block_groups_acs_native_{variant}_metadata.json"
     with open(out_path, "w", encoding="utf-8") as f:
-        json.dump(out, f, separators=(",", ":"))
+        json.dump(out, f, separators=(",", ":"), allow_nan=False)
     return out_path
+
+
+def export_metadata_acs_native(output_dir: Path = DATA_DIR) -> list[Path]:
+    """
+    Export metadata for both ACS native geography variants (2010 and 2020).
+
+    Returns list of written paths (may be empty if files missing).
+    """
+    written = []
+
+    # 2010 geography (years < 2020)
+    long_df, geo_gdf, _ = load_data("acs")
+    long_df_2010 = long_df[long_df["year"] < 2020]
+    if not long_df_2010.empty:
+        p = _export_metadata_acs_native_variant(output_dir, "2010", long_df_2010, geo_gdf)
+        if p:
+            written.append(p)
+
+    # 2020 geography (years >= 2020)
+    loaded = load_data_acs_native()
+    if loaded is not None:
+        long_df, geo_gdf, _ = loaded
+        long_df_2020 = long_df[long_df["year"] >= 2020]
+        if not long_df_2020.empty:
+            p = _export_metadata_acs_native_variant(output_dir, "2020", long_df_2020, geo_gdf)
+            if p:
+                written.append(p)
+
+    return written
 
 
 def copy_geo_to_viewer() -> list[Path]:
     """
     Copy GeoJSON files from project data dirs into tod-viz-viewer/public/data/
     so all runtime data is self-contained within the viewer.
+    Sanitizes NaN/Inf to null so JSON.parse works (geopandas can write NaN in coordinates).
     """
-    import shutil
-
     copied = []
     geo_out = DATA_DIR / "geo"
     geo_decennial_out = DATA_DIR / "geo_decennial"
@@ -475,7 +590,15 @@ def copy_geo_to_viewer() -> list[Path]:
     for src, dst_dir in [(acs_geo, geo_out), (acs_geo_2020, geo_out), (dec_geo, geo_decennial_out)]:
         if src.exists():
             dst = dst_dir / src.name
-            shutil.copy2(src, dst)
+            # Load, sanitize NaN (invalid JSON), and write; avoids JSON.parse failure in browser.
+            # GeoJSON from geopandas/fiona can contain NaN; json.load rejects it, so preprocess.
+            raw = src.read_text(encoding="utf-8")
+            for bad, repl in [("NaN", "null"), ("Infinity", "null"), ("-Infinity", "null")]:
+                raw = raw.replace(bad, repl)
+            geo_data = json.loads(raw)
+            sanitized = _sanitize_for_json(geo_data)
+            with open(dst, "w", encoding="utf-8") as f:
+                json.dump(sanitized, f, separators=(",", ":"), allow_nan=False)
             copied.append(dst)
             print(f"Copied {src.name} to {dst}")
 
@@ -530,7 +653,7 @@ def export_all(output_dir: Path = OUTPUT_DIR) -> list[Path]:
                 except Exception as e:
                     print(f"Skip {source} {var} {trans}: {e}")
 
-        # ACS native (2020 geography): export if 2020 files exist
+        # ACS native (2010 geography for years < 2020, 2020 geography for years >= 2020)
         if source == "acs":
             for _, row in var_map.iterrows():
                 var = row["variable"]
@@ -539,13 +662,17 @@ def export_all(output_dir: Path = OUTPUT_DIR) -> list[Path]:
                     trans = trans.strip()
                     if trans == "pie_group":
                         continue
-                    try:
-                        p = export_variable_acs_native(var, trans, output_dir)
-                        if p:
-                            created.append(p)
-                            print(f"Exported acs_native {var} {trans}")
-                    except Exception as e:
-                        print(f"Skip acs_native {var} {trans}: {e}")
+                    for export_fn, variant in [
+                        (export_variable_acs_native_2010, "2010"),
+                        (export_variable_acs_native_2020, "2020"),
+                    ]:
+                        try:
+                            p = export_fn(var, trans, output_dir)
+                            if p:
+                                created.append(p)
+                                print(f"Exported acs_native_{variant} {var} {trans}")
+                        except Exception as e:
+                            print(f"Skip acs_native_{variant} {var} {trans}: {e}")
 
     return created
 
@@ -605,7 +732,7 @@ def export_tod_projects(output_dir: Path | None = None) -> Path:
 
     output_dir.mkdir(parents=True, exist_ok=True)
     with open(out_path, "w", encoding="utf-8") as f:
-        json.dump(projects, f, indent=2)
+        json.dump(projects, f, indent=2, allow_nan=False)
     return out_path
 
 
@@ -614,7 +741,7 @@ def main() -> None:
     copied_geo = copy_geo_to_viewer()
     copied_lines = copy_lines_to_viewer()
 
-    # created = export_all()
+    created = export_all()
     tod_path = export_tod_projects()
 
     # Export metadata for tooltip and time-series (population, land area, county)
@@ -626,13 +753,13 @@ def main() -> None:
         except Exception as e:
             print(f"Skip metadata {src}: {e}")
     try:
-        p = export_metadata_acs_native()
-        if p:
+        paths = export_metadata_acs_native()
+        for p in paths:
             print(f"Exported metadata: {p.name}")
     except Exception as e:
         print(f"Skip acs_native metadata: {e}")
 
-    # print(f"Exported {len(created)} variable JSONs to {OUTPUT_DIR}")
+    print(f"Exported {len(created)} variable JSONs to {OUTPUT_DIR}")
     print(f"Exported TOD projects to {tod_path}")
     print(f"Copied {len(copied_geo)} GeoJSON files and {len(copied_lines)} lines file(s) to viewer data dir")
 

@@ -72,7 +72,7 @@ export function renderInteractiveVizApp(
     const next = { ...fullSelection, ...partial }
     next.imagePath = resolveImagePath(next, manifest)
     onChange(next)
-  }, { showGeography: true, showMbtaOverlay: true })
+  }, { showExtent: false, showGeography: true, showMbtaOverlay: true })
 
   root.selectAll('.slider-container').data([null]).join(
     (enter) =>

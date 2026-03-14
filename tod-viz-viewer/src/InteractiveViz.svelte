@@ -3,6 +3,8 @@
   import { selection } from './lib/store.js'
   import { renderInteractiveVizApp, getInitialSelection } from './lib/d3/d3InteractiveApp.js'
   import NavBar from './lib/NavBar.svelte'
+  import VariableTransformReference from './lib/VariableTransformReference.svelte'
+  import Disclaimer from './lib/Disclaimer.svelte'
   import type { Manifest } from './lib/manifest.js'
 
   /** Mount point for D3. */
@@ -71,6 +73,7 @@
   })
 </script>
 
+<Disclaimer />
 <div class="app">
   <h1>TOD Census — Interactive D3 Viewer</h1>
   <NavBar currentPage="interactive" />
@@ -79,6 +82,7 @@
     <code>python tod-viz-viewer/scripts/export_d3_data.py</code> to generate variable data. -->
   </p>
   <div bind:this={container} class="viz-mount"></div>
+  <VariableTransformReference />
 </div>
 
 <style>
@@ -106,6 +110,9 @@
   }
   .viz-mount {
     min-height: 200px;
+    width: 100%;
+    max-width: 100%;
+    overflow-x: hidden;
   }
   :global(.controls) {
     display: flex;
@@ -126,8 +133,10 @@
   }
   :global(.chart-view-container) {
     display: flex;
-    justify-content: center;
+    flex-direction: row;
     align-items: flex-start;
+    width: 100%;
+    max-width: 100%;
   }
   :global(.slider-container) {
     display: flex;
@@ -136,17 +145,34 @@
   :global(.chart-container) {
     display: flex;
     justify-content: center;
+    width: 100%;
+    max-width: 100%;
   }
   :global(.year-prev:hover),
   :global(.year-next:hover) {
     background: #c8c8c8 !important;
     border-color: #4a90d9 !important;
   }
+  :global(.choropleth-with-colorbar) {
+    min-width: 0;
+  }
+  :global(.choropleth-colorbar) {
+    flex-shrink: 0;
+  }
   :global(.choropleth-svg) {
+    flex: 1;
+    min-width: 0;
     max-width: 100%;
     height: auto;
   }
+  :global(.d3-chart-inner) {
+    flex: 1 1 0;
+    min-width: 0;
+  }
   :global(.time-series-panel) {
+    flex: 0 0 380px;
     min-height: 220px;
+    min-width: 0;
+    max-width: 50%; /* don't dominate on narrow viewports */
   }
 </style>

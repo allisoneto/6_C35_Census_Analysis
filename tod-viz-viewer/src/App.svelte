@@ -3,6 +3,8 @@
   import { selection } from './lib/store.js'
   import { renderVizApp, getInitialSelection } from './lib/d3/d3App.js'
   import NavBar from './lib/NavBar.svelte'
+  import VariableTransformReference from './lib/VariableTransformReference.svelte'
+  import Disclaimer from './lib/Disclaimer.svelte'
   import type { Manifest } from './lib/manifest.js'
 
   /** Mount point for D3. */
@@ -43,10 +45,12 @@
   })
 </script>
 
+<Disclaimer />
 <div class="app">
   <h1>TOD Census Visualization Viewer</h1>
   <NavBar currentPage="main" />
   <div bind:this={container} class="viz-mount"></div>
+  <VariableTransformReference />
 </div>
 
 <style>

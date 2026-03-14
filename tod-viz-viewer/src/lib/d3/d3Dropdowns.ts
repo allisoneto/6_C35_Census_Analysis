@@ -52,7 +52,15 @@ function getVariableData(manifest: Manifest, chartType: string, source: string) 
   const chart = manifest[chartType as keyof Manifest] as Record<string, { variables: { id: string; label: string }[] }> | undefined
   if (!chart || typeof chart !== 'object') return []
   const data = chart[source]
-  return (data?.variables ?? []).map((v) => ({ id: v.id, label: v.label }))
+  let vars = (data?.variables ?? []).map((v) => ({ id: v.id, label: v.label }))
+  // Choropleth: decennial dropdown must not show extras variables (only in Decennial (extras) source)
+  if (chartType === 'choropleth' && source === 'decennial') {
+    const extrasIds = new Set(
+      (chart['decennial_extras']?.variables ?? []).map((v: { id: string }) => v.id)
+    )
+    vars = vars.filter((v) => !extrasIds.has(v.id))
+  }
+  return vars
 }
 
 function getTransformData(manifest: Manifest, chartType: string, source: string, variable: string) {
@@ -66,6 +74,8 @@ function getTransformData(manifest: Manifest, chartType: string, source: string,
 
 /** Options for renderDropdowns (e.g. show geography dropdown on interactive page). */
 export interface RenderDropdownsOptions {
+  /** Show extent dropdown (Whole area / Boston zoom). Hidden on interactive page (user zooms manually). */
+  showExtent?: boolean
   /** Show ACS geography dropdown (unified 2010 vs native). Interactive page only. */
   showGeography?: boolean
   /** Show MBTA overlay dropdown (None / Major / Major+Bus). Interactive page only. */
@@ -88,6 +98,20 @@ export function renderDropdowns(
   const chartTypes = getChartTypeData(manifest)
   const sources = getSourceData(manifest, selection.chartType)
   const variables = getVariableData(manifest, selection.chartType, selection.source)
+  // If current variable was filtered out (e.g. extras in decennial), reset to first valid
+  const validVar = variables.find((v) => v.id === selection.variable)
+  if (variables.length && !validVar) {
+    const chart = manifest[selection.chartType as keyof Manifest] as Record<string, { variables: { id: string; label: string; transforms?: string[]; years: number[] }[] }> | undefined
+    const src = chart?.[selection.source]
+    const vv = src?.variables?.find((x) => x.id === variables[0].id)
+    onChange({
+      variable: variables[0].id,
+      variableLabel: variables[0].label,
+      transform: vv?.transforms?.[0] ?? 'default',
+      year: vv?.years?.[0] ?? selection.year,
+      years: vv?.years ?? selection.years,
+    })
+  }
   const transforms = getTransformData(manifest, selection.chartType, selection.source, selection.variable)
 
   // Chart type
@@ -154,10 +178,11 @@ export function renderDropdowns(
     })
   })
 
-  // Extent (choropleth only): Boston zoom vs whole area
+  // Extent (choropleth only): Boston zoom vs whole area. Hidden on interactive page (user zooms manually).
+  const showExtent = options?.showExtent ?? true
   const extentContainer = controls
     .selectAll<HTMLDivElement, boolean>('.extent-container')
-    .data([selection.chartType === 'choropleth'])
+    .data([showExtent && selection.chartType === 'choropleth'])
     .join(
       (enter) =>
         enter
@@ -240,10 +265,14 @@ export function renderDropdowns(
     }
   })
 
-  // Transform (only if multiple)
+  // Transform/View (only if multiple): per_aland, proportion, etc. toggled here, not in variable name.
+  // For choropleth, label as "View" so users toggle display (Count, Per sq m, Proportion) separately from variable.
+  const showTransform = transforms.length > 1
+  const transformLabel =
+    selection.chartType === 'choropleth' ? 'View' : 'Transform'
   const transformContainer = controls
     .selectAll<HTMLDivElement, boolean>('.transform-container')
-    .data([transforms.length > 1])
+    .data([showTransform])
     .join(
       (enter) =>
         enter
@@ -259,7 +288,7 @@ export function renderDropdowns(
       renderSelect(
         d3.select(this),
         'transform',
-        'Transform',
+        transformLabel,
         transforms,
         selection.transform,
         (id) => onChange({ transform: id })

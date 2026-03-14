@@ -122,10 +122,30 @@ def clip_block_groups_to_mbta(
 
     # Ensure same CRS
     mbta = mbta.to_crs(bg.crs)
-    # Clip: keep block groups that intersect MBTA
-    clipped = gpd.sjoin(bg, mbta[["geometry"]], how="inner", predicate="intersects")
-    # Drop duplicate block groups (one BG can touch multiple towns at edges)
+    # Clip: keep block groups that intersect MBTA (include TOWN if available for centroid-based assignment)
+    mbta_cols = ["geometry", "TOWN"] if "TOWN" in mbta.columns else ["geometry"]
+    clipped = gpd.sjoin(bg, mbta[mbta_cols], how="inner", predicate="intersects")
     clipped = clipped.drop(columns=[c for c in clipped.columns if c.startswith("index_")])
+    # For block groups touching multiple towns, assign town by centroid (which MBTA community contains it)
+    geoid_col = "GEOID" if "GEOID" in clipped.columns else "GEOID10" if "GEOID10" in clipped.columns else None
+    if geoid_col and "TOWN" in clipped.columns:
+        centroids = clipped[[geoid_col, "geometry"]].copy()
+        centroids["geometry"] = centroids.geometry.centroid
+        town_join = gpd.sjoin(centroids, mbta[["geometry", "TOWN"]], how="left", predicate="within")
+        town_join = town_join.drop(columns=[c for c in town_join.columns if c.startswith("index_")])
+        town_by_geoid = (
+            town_join.drop_duplicates(subset=[geoid_col])
+            .set_index(geoid_col)["TOWN"]
+            .fillna("")
+            .astype(str)
+        )
+        # Replace TOWN with centroid-based assignment (handles edge cases like Cambridge/MIT)
+        clipped = clipped.drop(columns=["TOWN"])
+        clipped["town"] = clipped[geoid_col].astype(str).map(lambda g: town_by_geoid.get(g, "") or "")
+    else:
+        clipped["town"] = clipped["TOWN"].astype(str) if "TOWN" in clipped.columns else ""
+        if "TOWN" in clipped.columns:
+            clipped = clipped.drop(columns=["TOWN"])
 
     # Ensure GEOID exists. TIGER naming varies by vintage:
     # 2020: GEOID20; 2010: GEOID10; 2000: BKGPIDFP00 or STATEFP00/COUNTYFP00/TRACTCE00/BLKGRPCE00; older: STATEFP/COUNTYFP/TRACTCE/BLKGRPCE

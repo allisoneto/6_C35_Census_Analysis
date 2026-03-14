@@ -16,6 +16,8 @@ export interface TimeSeriesData {
   landArea: number[]
   variableLabel: string
   transform: string
+  /** 'acs' | 'decennial' – used to control x-axis tick spacing (ACS: every 2 years). */
+  source?: string
 }
 
 /**
@@ -74,17 +76,21 @@ export function renderTimeSeriesLine(
   const avgSeries = computeWeightedAverages(data)
 
   const margin = { top: 20, right: 30, bottom: 40, left: 50 }
-  const width = Math.max(300, container.clientWidth || 400) - margin.left - margin.right
+  // Panel has flex: 0 0 380px so its width is stable; fallback when layout not yet computed
+  const availableWidth = container.clientWidth || 380
+  const width = Math.max(300, availableWidth) - margin.left - margin.right
   const height = 220 - margin.top - margin.bottom
 
   d3.select(container).selectAll('*').remove()
 
+  const svgWidth = width + margin.left + margin.right
   const svg = d3
     .select(container)
     .append('svg')
-    .attr('width', width + margin.left + margin.right)
+    .attr('width', svgWidth)
     .attr('height', height + margin.top + margin.bottom)
-    .attr('viewBox', [0, 0, width + margin.left + margin.right, height + margin.top + margin.bottom])
+    .attr('viewBox', [0, 0, svgWidth, height + margin.top + margin.bottom])
+    .style('max-width', '100%')
 
   const g = svg.append('g').attr('transform', `translate(${margin.left},${margin.top})`)
 
@@ -104,25 +110,59 @@ export function renderTimeSeriesLine(
 
   const yScale = d3.scaleLinear().domain(yDomain).range([height, 0])
 
+  // Null/NaN values create gaps in the line (not drawn as 0); .defined() ensures no segments at missing data
   const line = d3
     .line<{ year: number; value: number | null }>()
     .x((d) => xScale(d.year))
-    .y((d) => (d.value != null ? yScale(d.value) : height))
+    .y((d) => (d.value != null && Number.isFinite(d.value) ? yScale(d.value) : 0))
     .defined((d) => d.value != null && Number.isFinite(d.value))
 
   const avgLine = d3
     .line<{ year: number; avg: number }>()
     .x((d) => xScale(d.year))
-    .y((d) => (Number.isFinite(d.avg) ? yScale(d.avg) : height))
+    .y((d) => (Number.isFinite(d.avg) ? yScale(d.avg) : 0))
     .defined((d) => Number.isFinite(d.avg))
 
+  // ACS: x-axis ticks every 2 years; decennial: every 5 years (e.g. 2010, 2015, 2020)
+  const xAxis = d3.axisBottom(xScale).tickFormat(d3.format('d'))
+  const minYear = Math.min(...data.years)
+  const maxYear = Math.max(...data.years)
+  const yearStep = data.source === 'acs' ? 2 : data.source === 'decennial' ? 10 : undefined
+  if (yearStep != null) {
+    const xTickValues: number[] = []
+    for (let y = minYear; y <= maxYear; y += yearStep) xTickValues.push(y)
+    if (xTickValues.length > 0) xAxis.tickValues(xTickValues)
+  }
   g.append('g')
     .attr('transform', `translate(0,${height})`)
-    .call(d3.axisBottom(xScale).tickFormat(d3.format('d')))
+    .call(xAxis)
     .selectAll('text')
     .style('font-size', '10px')
 
-  g.append('g').call(d3.axisLeft(yScale).tickSize(-width).tickFormat(d3.format('.2f'))).selectAll('text').style('font-size', '10px')
+  // Ticks at 0, 5, 10, 15, etc. when range is 5–50; otherwise use ~6 nice ticks to avoid squashed text
+  const range = yDomain[1] - yDomain[0]
+  const tickValues =
+    range >= 5 && range <= 50
+      ? (() => {
+          const step = 5
+          const start = Math.floor(yDomain[0] / step) * step
+          const end = Math.ceil(yDomain[1] / step) * step
+          const out: number[] = []
+          for (let v = start; v <= end; v += step) out.push(v)
+          return out
+        })()
+      : d3.ticks(yDomain[0], yDomain[1], 6)
+
+  g.append('g')
+    .call(
+      d3
+        .axisLeft(yScale)
+        .tickValues(tickValues)
+        .tickSize(-width)
+        .tickFormat(d3.format('.2f'))
+    )
+    .selectAll('text')
+    .style('font-size', '10px')
 
   g.append('path')
     .datum(selectedSeries)

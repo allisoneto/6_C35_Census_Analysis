@@ -11,10 +11,15 @@ Output: public/manifest.json
 
 import json
 import re
+import sys
 from pathlib import Path
 
-# Paths
+# Add scripts dir for d3_var_categories
 SCRIPT_DIR = Path(__file__).resolve().parent
+sys.path.insert(0, str(SCRIPT_DIR))
+from d3_var_categories import DECENNIAL_CHORO_APPROVED
+
+# Paths
 TOD_VIZ_DIR = SCRIPT_DIR.parent
 PROJECT_ROOT = TOD_VIZ_DIR.parent
 OUTPUT_DIR = PROJECT_ROOT / "output"
@@ -96,6 +101,97 @@ def scan_choropleths() -> dict:
     return result
 
 
+def scan_d3_choropleth_json() -> dict:
+    """
+    Scan D3 choropleth folder for acs_*.json and decennial_*.json.
+    Used to include per_aland and other transforms for population/housing density
+    (persons/land area, housing units/land area) in the interactive D3 viewer,
+    even when PNGs were not generated for those transforms.
+    """
+    result = {"acs": {"variables": []}, "decennial": {"variables": []}}
+    if not CHOROPLETH_DATA_DIR.exists():
+        return result
+
+    import csv
+    acs_mapping = PROJECT_ROOT / "acs" / "data" / "acs_variable_mapping.csv"
+    dec_mapping = PROJECT_ROOT / "decennial_census" / "data" / "decennial_variable_mapping_nhgis.csv"
+    label_by_var: dict[str, str] = {}
+    for path in [acs_mapping, dec_mapping]:
+        if path.exists():
+            with open(path, encoding="utf-8") as f:
+                for row in csv.DictReader(f):
+                    label_by_var[row["variable"]] = row.get("human_readable_name", row["variable"])
+
+    for source in ["acs", "decennial"]:
+        prefix = f"{source}_"
+        var_data: dict[str, dict] = {}
+        for p in CHOROPLETH_DATA_DIR.glob(f"{prefix}*.json"):
+            stem = p.stem
+            if not stem.startswith(prefix):
+                continue
+            # Skip acs_native_* (handled by acs geography selector)
+            rest = stem[len(prefix):]
+            if rest.startswith("native"):
+                continue
+            # Variable can contain underscores (e.g. B01001_001E); transform is from fixed set
+            known_transforms = ("per_aland", "per_population", "proportion", "count", "raw")
+            var_id, transform = None, None
+            for t in known_transforms:
+                suffix = "_" + t
+                if rest.endswith(suffix):
+                    var_id = rest[: -len(suffix)]
+                    transform = t
+                    break
+            if var_id is None or transform is None:
+                continue
+            if var_id not in var_data:
+                var_data[var_id] = {
+                    "id": var_id,
+                    "label": label_by_var.get(var_id, var_id.replace("_", " ")),
+                    "transforms": {},
+                    "years": set(),
+                }
+            if transform not in var_data[var_id]["transforms"]:
+                var_data[var_id]["transforms"][transform] = []
+            try:
+                with open(p, encoding="utf-8") as f:
+                    data = json.load(f)
+                years = data.get("years", [])
+                var_data[var_id]["transforms"][transform] = years
+                var_data[var_id]["years"].update(years)
+            except (json.JSONDecodeError, KeyError):
+                pass
+
+        for var_id, data in var_data.items():
+            all_years = sorted(data["years"])
+            transforms = sorted(data["transforms"].keys())
+            result[source]["variables"].append({
+                "id": var_id,
+                "label": data["label"],
+                "transforms": transforms,
+                "years": all_years,
+            })
+    return result
+
+
+def _merge_choropleth_variables(png_vars: list, json_vars: list) -> list:
+    """Merge variable lists by id; union of transforms and years."""
+    by_id: dict[str, dict] = {}
+    for v in png_vars:
+        by_id[v["id"]] = v.copy()
+    for v in json_vars:
+        vid = v["id"]
+        if vid in by_id:
+            existing = by_id[vid]
+            trans_set = set(existing.get("transforms", [])) | set(v.get("transforms", []))
+            year_set = set(existing.get("years", [])) | set(v.get("years", []))
+            by_id[vid]["transforms"] = sorted(trans_set)
+            by_id[vid]["years"] = sorted(year_set)
+        else:
+            by_id[vid] = v.copy()
+    return list(by_id.values())
+
+
 def scan_d3_decennial_extras() -> dict:
     """
     Scan D3 choropleth folder for decennial_extras_*.json (variables not in var_list).
@@ -113,17 +209,24 @@ def scan_d3_decennial_extras() -> dict:
             for row in csv.DictReader(f):
                 label_by_var[row["variable"]] = row.get("human_readable_name", row["variable"])
 
+    # Transforms can contain underscores (e.g. per_aland, per_population); must match
+    # before using rsplit to avoid parsing "CM0AA_per_aland" as var="CM0AA_per", trans="aland".
+    known_transforms = ("per_aland", "per_population", "proportion", "count", "raw")
     var_data = {}
     for p in CHOROPLETH_DATA_DIR.glob("decennial_extras_*.json"):
-        # decennial_extras_{variable}_{transform}.json
         stem = p.stem
         if not stem.startswith("decennial_extras_"):
             continue
         rest = stem[len("decennial_extras_"):]
-        parts = rest.rsplit("_", 1)
-        if len(parts) != 2:
+        var_id, transform = None, None
+        for t in known_transforms:
+            suffix = "_" + t
+            if rest.endswith(suffix):
+                var_id = rest[: -len(suffix)]
+                transform = t
+                break
+        if var_id is None or transform is None:
             continue
-        var_id, transform = parts
         if var_id not in var_data:
             var_data[var_id] = {"id": var_id, "label": label_by_var.get(var_id, var_id), "transforms": {}, "years": set()}
         if transform not in var_data[var_id]["transforms"]:
@@ -332,7 +435,23 @@ def scan_scatter_plots() -> dict:
 def build_manifest() -> dict:
     """Build the full manifest from all chart types."""
     choropleth = scan_choropleths()
+    d3_json = scan_d3_choropleth_json()
     decennial_extras = scan_d3_decennial_extras()
+
+    # Merge D3 choropleth JSON (persons/land, housing/land, etc.) with PNG-derived data
+    for source in ["acs", "decennial"]:
+        choropleth[source]["variables"] = _merge_choropleth_variables(
+            choropleth[source]["variables"],
+            d3_json[source]["variables"],
+        )
+
+    # Decennial dropdown: only variables in DECENNIAL_CHORO_APPROVED (var_list.yaml).
+    # Extras variables go only in Decennial (extras) dropdown.
+    choropleth["decennial"]["variables"] = [
+        v for v in choropleth["decennial"]["variables"]
+        if v["id"] in DECENNIAL_CHORO_APPROVED
+    ]
+
     if decennial_extras["variables"]:
         choropleth["decennial_extras"] = decennial_extras
     pie_chart = scan_pie_charts()

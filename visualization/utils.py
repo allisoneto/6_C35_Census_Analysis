@@ -5,6 +5,7 @@ Provides unified load_data(source) for ACS and decennial, plus apply_transformat
 for raw, count, per_aland, per_population, and proportion.
 """
 
+import math
 import re
 from pathlib import Path
 from typing import Literal
@@ -219,6 +220,9 @@ def apply_transformation(
     try:
         v = float(value)
     except (TypeError, ValueError):
+        return None
+    # NaN/Inf are invalid for JSON; treat as missing
+    if not math.isfinite(v):
         return None
 
     if transform == "raw" or transform == "count":

@@ -51,6 +51,9 @@ const MA_COUNTY_NAMES: Record<string, string> = {
   '027': 'Worcester',
 }
 
+/** Width of the colorbar (scale legend) to the left of the map. */
+const COLORBAR_WIDTH = 56
+
 /** Base sizes for zoom-invariant rendering (scaled by 1/k in zoom handler). */
 const BG_STROKE_BASE = 0.3
 const LINE_STROKE_BASE = 3
@@ -69,7 +72,7 @@ interface MbtaStopPoint {
   route_label: string
 }
 
-/** Block group metadata: population by year, land area, county for tooltip and time-series. */
+/** Block group metadata: population by year, land area, county/town for tooltip and time-series. */
 interface BlockGroupMetadata {
   geoids: string[]
   years: number[]
@@ -77,6 +80,7 @@ interface BlockGroupMetadata {
   land_area: number[]
   county_fips: string[]
   county_name: string[]
+  town_name?: string[]
 }
 
 /** Cached data to avoid refetch on year change. */
@@ -108,29 +112,41 @@ interface TodProject {
   tod_type?: string
 }
 
-/** Geo cache key: acs uses 'acs' or 'acs_native' by geography; decennial uses 'decennial'. */
+/**
+ * Native census geography variant by year: 2010 boundaries for years before 2020,
+ * 2020 boundaries for 2020 and later.
+ */
+function nativeGeoVariant(year: number): '2010' | '2020' {
+  return year >= 2020 ? '2020' : '2010'
+}
+
+/** Geo cache key: acs uses 'acs' or 'acs_native_2010'/'acs_native_2020' by geography+year; decennial uses 'decennial'. */
 function geoKey(selection: SelectionState): string {
   if (selection.source === 'acs') {
-    return (selection.acsGeography ?? 'unified_2010') === 'native' ? 'acs_native' : 'acs'
+    if ((selection.acsGeography ?? 'unified_2010') === 'native') {
+      return `acs_native_${nativeGeoVariant(selection.year)}`
+    }
+    return 'acs'
   }
   return selection.source === 'decennial_extras' ? 'decennial_extras' : 'decennial'
 }
 
 function geoUrl(selection: SelectionState): string {
   const key = geoKey(selection)
-  if (key === 'acs_native') {
+  if (key === 'acs_native_2020') {
     return '/data/geo/block_groups_acs_overlap_2020.geojson'
   }
-  if (key === 'acs') {
+  if (key === 'acs_native_2010' || key === 'acs') {
     return '/data/geo/block_groups_acs_overlap.geojson'
   }
   return '/data/geo_decennial/block_groups_decennial_merged.geojson'
 }
 
-/** Variable JSON URL: acs_native uses acs_native_{var}_{transform}.json */
+/** Variable JSON URL: acs_native uses acs_native_{2010|2020}_{var}_{transform}.json by year */
 function variableUrl(selection: SelectionState): string {
   if (selection.source === 'acs' && (selection.acsGeography ?? 'unified_2010') === 'native') {
-    return `/data/choropleth/acs_native_${selection.variable}_${selection.transform}.json`
+    const variant = nativeGeoVariant(selection.year)
+    return `/data/choropleth/acs_native_${variant}_${selection.variable}_${selection.transform}.json`
   }
   return `/data/choropleth/${selection.source}_${selection.variable}_${selection.transform}.json`
 }
@@ -138,7 +154,8 @@ function variableUrl(selection: SelectionState): string {
 /** Variable cache key (must match variableUrl). */
 function variableKey(selection: SelectionState): string {
   if (selection.source === 'acs' && (selection.acsGeography ?? 'unified_2010') === 'native') {
-    return `acs_native_${selection.variable}_${selection.transform}`
+    const variant = nativeGeoVariant(selection.year)
+    return `acs_native_${variant}_${selection.variable}_${selection.transform}`
   }
   return `${selection.source}_${selection.variable}_${selection.transform}`
 }
@@ -146,15 +163,17 @@ function variableKey(selection: SelectionState): string {
 /** Metadata JSON URL for tooltip and time-series (population, land area, county). */
 function metadataUrl(selection: SelectionState): string {
   const key = geoKey(selection)
-  const name = key === 'acs_native' ? 'block_groups_acs_native_metadata' : `block_groups_${key}_metadata`
-  return `/data/metadata/${name}.json`
+  return `/data/metadata/block_groups_${key}_metadata.json`
 }
 
 async function loadMetadata(selection: SelectionState): Promise<BlockGroupMetadata | null> {
   const key = geoKey(selection)
   if (cache.metadata[key]) return cache.metadata[key]
   try {
-    const data = await fetchJson<BlockGroupMetadata>(metadataUrl(selection))
+    const primary = metadataUrl(selection)
+    const fallback =
+      key === 'acs_native_2020' ? '/data/metadata/block_groups_acs_native_metadata.json' : null
+    const data = await fetchJsonWithFallback<BlockGroupMetadata>(primary, fallback)
     cache.metadata[key] = data
     return data
   } catch {
@@ -165,7 +184,28 @@ async function loadMetadata(selection: SelectionState): Promise<BlockGroupMetada
 async function fetchJson<T>(url: string): Promise<T> {
   const res = await fetch(url)
   if (!res.ok) throw new Error(`Failed to load ${url}: ${res.status}`)
-  return res.json()
+  const text = await res.text()
+  try {
+    return JSON.parse(text) as T
+  } catch {
+    throw new Error(`Invalid JSON from ${url} (got ${text.slice(0, 50)}...)`)
+  }
+}
+
+/** Try primary URL; if it returns HTML (404 page), try fallback. Used for backward compat with legacy acs_native_* files. */
+async function fetchJsonWithFallback<T>(primary: string, fallback: string | null): Promise<T> {
+  try {
+    return await fetchJson<T>(primary)
+  } catch (e) {
+    if (fallback) {
+      try {
+        return await fetchJson<T>(fallback)
+      } catch {
+        throw e
+      }
+    }
+    throw e
+  }
 }
 
 async function loadGeo(selection: SelectionState): Promise<GeoJSON.FeatureCollection> {
@@ -307,10 +347,20 @@ function filterStopsByOverlay(stops: MbtaStopPoint[], overlay: 'none' | 'major' 
   return stops.filter((s) => s.route_type !== ROUTE_TYPE_BUS)
 }
 
+/** Legacy variable URL (pre-2010/2020 split): acs_native_{var}_{transform}.json. Used as fallback when new files not yet exported. */
+function variableUrlLegacy(selection: SelectionState): string | null {
+  if (selection.source === 'acs' && (selection.acsGeography ?? 'unified_2010') === 'native') {
+    return `/data/choropleth/acs_native_${selection.variable}_${selection.transform}.json`
+  }
+  return null
+}
+
 async function loadVariableData(selection: SelectionState): Promise<VariableData> {
   const key = variableKey(selection)
   if (cache.variable[key]) return cache.variable[key]
-  const data = await fetchJson<VariableData>(variableUrl(selection))
+  const primary = variableUrl(selection)
+  const fallback = nativeGeoVariant(selection.year) === '2020' ? variableUrlLegacy(selection) : null
+  const data = await fetchJsonWithFallback<VariableData>(primary, fallback)
   cache.variable[key] = data
   return data
 }
@@ -353,7 +403,7 @@ function bgTooltipHtml(
   const valStr = value != null ? value.toLocaleString(undefined, { maximumFractionDigits: 4 }) : '—'
   return [
     `<strong>${escapeHtml(geoid)}</strong>`,
-    `County: ${escapeHtml(town)}`,
+    // `County: ${escapeHtml(town)}`,  // Commented out: county/town display was incorrect for some areas
     `Population: ${popStr}`,
     `Land area: ${areaStr} sq mi`,
     `${escapeHtml(variableLabel)}: ${valStr}`,
@@ -422,7 +472,7 @@ function updateTimeSeriesPanel(
     panel = document.createElement('div')
     panel.className = 'time-series-panel'
     panel.style.cssText =
-      'margin-top:16px;padding:12px;background:#f8f8f8;border-radius:8px;border:1px solid #ddd;'
+      'margin-top:16px;padding:12px;background:#f8f8f8;border-radius:8px;border:1px solid #ddd;width:100%;box-sizing:border-box;overflow:hidden;'
     chartViewContainer.appendChild(panel)
   }
   panel.style.display = 'block'
@@ -441,6 +491,7 @@ function updateTimeSeriesPanel(
     landArea: metadata.land_area,
     variableLabel: selection.variableLabel ?? selection.variable,
     transform,
+    source: selection.source,
   }
   renderTimeSeriesLine(panel, tsData, selectedGeoid)
 }
@@ -449,13 +500,14 @@ function updateTimeSeriesPanel(
 export function renderChoropleth(container: HTMLElement, selection: SelectionState): void {
   const existingSvg = container.querySelector('.choropleth-svg')
   const extent = selection.extent ?? 'whole'
-  const acsGeography = selection.acsGeography ?? 'unified_2010'
   const mbtaOverlay = selection.mbtaOverlay ?? 'major'
+  // Effective geo key includes year for native (acs_native_2010 vs acs_native_2020)
+  const effectiveGeoKey = geoKey(selection)
   const prevExtent = (container as HTMLElement & { __choroplethExtent?: string }).__choroplethExtent
-  const prevGeography = (container as HTMLElement & { __choroplethGeography?: string }).__choroplethGeography
+  const prevGeoKey = (container as HTMLElement & { __choroplethGeoKey?: string }).__choroplethGeoKey
   const prevMbtaOverlay = (container as HTMLElement & { __choroplethMbtaOverlay?: string }).__choroplethMbtaOverlay
   const isUpdate =
-    !!existingSvg && prevExtent === extent && prevGeography === acsGeography && prevMbtaOverlay === mbtaOverlay
+    !!existingSvg && prevExtent === extent && prevGeoKey === effectiveGeoKey && prevMbtaOverlay === mbtaOverlay
 
   if (isUpdate) {
     // Year-only change (same extent and geography): update fills and TOD markers in place
@@ -464,9 +516,9 @@ export function renderChoropleth(container: HTMLElement, selection: SelectionSta
     return
   }
 
-  // Initial render or extent/geography/overlay change: fetch data and build map
-    ;(container as HTMLElement & { __choroplethExtent?: string }).__choroplethExtent = extent
-  ;(container as HTMLElement & { __choroplethGeography?: string }).__choroplethGeography = acsGeography
+  // Initial render or extent/geography/year-boundary change: fetch data and build map
+  ;(container as HTMLElement & { __choroplethExtent?: string }).__choroplethExtent = extent
+  ;(container as HTMLElement & { __choroplethGeoKey?: string }).__choroplethGeoKey = effectiveGeoKey
   ;(container as HTMLElement & { __choroplethMbtaOverlay?: string }).__choroplethMbtaOverlay = mbtaOverlay
   ;(container as HTMLElement & { __choroplethSelection?: SelectionState }).__choroplethSelection = selection
   initChoropleth(container, selection)
@@ -588,27 +640,85 @@ async function initChoropleth(container: HTMLElement, selection: SelectionState)
     ;(container as HTMLElement & { __selectedGEOID?: string }).__selectedGEOID = undefined
 
     container.innerHTML = ''
-    const width = container.clientWidth || 800
-    const height = Math.max(400, width * 0.6)
+    const totalWidth = container.clientWidth || 800
+    const height = Math.max(400, totalWidth * 0.6)
+    const mapWidth = Math.max(200, totalWidth - COLORBAR_WIDTH)
 
-    const svg = d3
+    const wrapper = d3
       .select(container)
+      .append('div')
+      .attr('class', 'choropleth-with-colorbar')
+      .style('display', 'flex')
+      .style('width', '100%')
+      .style('height', '100%')
+
+    const vmin = variableData.vmin
+    const vmax = variableData.vmax
+    const colorScale = d3
+      .scaleSequential(d3.interpolateViridis)
+      .domain([vmin, vmax])
+
+    // Colorbar SVG: gradient + axis
+    const colorbarSvg = wrapper
+      .append('svg')
+      .attr('class', 'choropleth-colorbar')
+      .attr('width', COLORBAR_WIDTH)
+      .attr('height', height)
+      .attr('viewBox', [0, 0, COLORBAR_WIDTH, height])
+
+    const cbMargin = { top: 12, right: 8, bottom: 12, left: 4 }
+    const cbHeight = height - cbMargin.top - cbMargin.bottom
+    const gradientId = 'choropleth-cb-gradient-' + Math.random().toString(36).slice(2)
+    colorbarSvg
+      .append('defs')
+      .append('linearGradient')
+      .attr('id', gradientId)
+      .attr('x1', 0)
+      .attr('y1', 1)
+      .attr('x2', 0)
+      .attr('y2', 0)
+      .selectAll('stop')
+      .data([0, 0.2, 0.4, 0.6, 0.8, 1])
+      .join('stop')
+      .attr('offset', (d) => d)
+      .attr('stop-color', (d) => colorScale(vmin + d * (vmax - vmin)))
+
+    const cbScale = d3.scaleLinear().domain([vmax, vmin]).range([cbMargin.top, height - cbMargin.bottom])
+    colorbarSvg
+      .append('rect')
+      .attr('x', COLORBAR_WIDTH - 20)
+      .attr('y', cbMargin.top)
+      .attr('width', 10)
+      .attr('height', cbHeight)
+      .attr('fill', `url(#${gradientId})`)
+      .attr('rx', 2)
+
+    colorbarSvg
+      .append('g')
+      .attr('transform', `translate(${COLORBAR_WIDTH - 24},0)`)
+      .call(
+        d3
+          .axisLeft(cbScale)
+          .ticks(5)
+          .tickSize(4)
+          .tickFormat((x) => (typeof x === 'number' ? d3.format('.2g')(x) : String(x)))
+      )
+      .selectAll('text')
+      .style('font-size', '10px')
+
+    const svg = wrapper
       .append('svg')
       .attr('class', 'choropleth-svg')
-      .attr('width', width)
+      .attr('width', mapWidth)
       .attr('height', height)
-      .attr('viewBox', [0, 0, width, height])
+      .attr('viewBox', [0, 0, mapWidth, height])
 
     // Fit projection: whole area uses full geo; Boston zoom uses bounds polygon (matches PNG boston_zoom)
     const extent = selection.extent ?? 'whole'
     const fitObject = extent === 'boston' ? BOSTON_EXTENT_GEO : geo
-    const projection = d3.geoMercator().fitSize([width, height], fitObject)
+    const projection = d3.geoMercator().fitSize([mapWidth, height], fitObject)
     ;(window as unknown as { __choroplethProjection?: d3.GeoProjection }).__choroplethProjection = projection
     const pathGen = d3.geoPath().projection(projection)
-
-    const colorScale = d3
-      .scaleSequential(d3.interpolateViridis)
-      .domain([variableData.vmin, variableData.vmax])
 
     const zoomLayer = svg.append('g').attr('class', 'zoom-layer')
     const mapLayer = zoomLayer.append('g').attr('class', 'map-layer')
@@ -639,11 +749,16 @@ async function initChoropleth(container: HTMLElement, selection: SelectionState)
         const idx = geoid ? lookupGeoids.indexOf(geoid) : -1
         const currentYear = (container as HTMLElement & { __choroplethSelection?: SelectionState }).__choroplethSelection?.year ?? selection.year
         const v = idx >= 0 ? (variableData.values[String(currentYear)]?.[idx] ?? null) : null
-        // Town/county: prefer COUNTYFP from GeoJSON feature (always correct for hovered feature); fallback to metadata
-        const countyFips = String(d.properties?.COUNTYFP ?? d.properties?.COUNTYFP10 ?? d.properties?.COUNTYFP20 ?? '').padStart(3, '0')
-        const town = countyFips
-          ? (MA_COUNTY_NAMES[countyFips] ?? countyFips)
-          : (idx >= 0 ? (metadata?.county_name?.[idx] ?? '—') : '—')
+        // Town: prefer MBTA community (GeoJSON "town") or metadata town_name; fallback to county from GEOID
+        const townFromGeo = (d.properties?.town as string)?.trim()
+        const townFromMeta = idx >= 0 ? (metadata?.town_name?.[idx] as string)?.trim() : ''
+        const countyFips =
+          geoid.length >= 5
+            ? geoid.slice(2, 5)
+            : String(d.properties?.COUNTYFP ?? d.properties?.COUNTYFP10 ?? d.properties?.COUNTYFP20 ?? '').padStart(3, '0')
+        const countyName = countyFips ? (MA_COUNTY_NAMES[countyFips] ?? countyFips) : ''
+        const town =
+          townFromGeo || townFromMeta || countyName || (idx >= 0 ? (metadata?.county_name?.[idx] ?? '—') : '—')
         const pop = idx >= 0 ? (metadata?.population?.[String(currentYear)]?.[idx] ?? null) : null
         const aland = metadata?.land_area?.[idx] ?? (d.properties?.ALAND10 ?? d.properties?.ALAND ?? d.properties?.ALAND20) as number | undefined
         const landSqMi = aland != null && aland > 0 ? aland * SQ_M_TO_SQ_MI : null
@@ -788,7 +903,7 @@ async function initChoropleth(container: HTMLElement, selection: SelectionState)
     const acsGeo = selection.acsGeography ?? 'unified_2010'
     const hint =
       acsGeo === 'native'
-        ? 'Native geography requires block_groups_acs_overlap_2020.* (run acs build with tl_2020_25_bg.shp) and acs_native_*.json (run export_d3_data.py).'
+        ? 'Native geography requires block_groups_acs_overlap.geojson (2010 geography), block_groups_acs_overlap_2020.geojson (2020 geography), and acs_native_2010_*/acs_native_2020_*.json (run export_d3_data.py).'
         : 'Run: python tod-viz-viewer/scripts/export_d3_data.py'
     showError(container, `Failed to load map: ${msg}. ${hint}`)
   }

@@ -32,7 +32,9 @@ export function renderChartView(
           .append('div')
           .attr('class', 'chart-view-container')
           .style('position', 'relative')
-          .style('min-height', '400px'),
+          .style('min-height', '400px')
+          .style('width', '100%')
+          .style('max-width', '100%'),
       (update) => update,
       (exit) => exit.remove()
     )
